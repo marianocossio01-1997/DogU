@@ -15,7 +15,7 @@ const parseJsonIfNeeded = (val: any) => {
 };
 export const createClientRequest = async (data: CreateClientRequestInput) => {
     try {
-        const result = await prisma.$transaction(async (tx) => {
+        const result = await prisma.$transaction(async (tx: any) => {
             await tx.$executeRaw`
                 INSERT INTO client_requests(
                     id_client,
@@ -203,7 +203,7 @@ export const getNearbyClientRequests = async (driverLat: number, driverLng: numb
         if (!rawData || !rawData.length) {
             return [];
         }
-        const data = rawData.map(item => ({
+        const data = rawData.map((item: any) => ({
             ...item,
             pickup_position: parseJsonIfNeeded(item.pickup_position),
             destination_position: parseJsonIfNeeded(item.destination_position),
@@ -215,7 +215,7 @@ export const getNearbyClientRequests = async (driverLat: number, driverLng: numb
         let elements: any[] = [];
 
         try {
-            const destinations = data.map(item => `${item.pickup_position.y},${item.pickup_position.x}`).join("|");
+            const destinations = data.map((item: any) => `${item.pickup_position.y},${item.pickup_position.x}`).join("|");
             const response = await axios.get(url, {
                 params: {
                     origins: `${driverLat},${driverLng}`,
@@ -231,7 +231,7 @@ export const getNearbyClientRequests = async (driverLat: number, driverLng: numb
         } catch (error) {
             console.warn("⚠️ Google Distance Matrix falló o devolvió error, omitiendo distancia exacta:", error);
         }
-        const formatted = data.map((item, index) => {
+        const formatted = data.map((item: any, index: number) => {
             const clientObj = item.client || {};
             const clientImage = clientObj.image 
                 ? (clientObj.image.startsWith('http') 
@@ -386,7 +386,7 @@ export const getByClientAssigned = async (id_client: number) => {
             CR.id_client = ${id_client} AND CR.status = 'FINISHED'    
     `;
     if (!rawData.length) return [];  
-    const formatted = rawData.map(item => {
+    const formatted = rawData.map((item: any) => {
         const clientObj = parseJsonIfNeeded(item.client) || {};
         const driverObj = parseJsonIfNeeded(item.driver) || {};
         return {
@@ -461,7 +461,7 @@ export const getByDriverAssigned = async (id_driver_assigned: number) => {
             CR.id_driver_assigned = ${id_driver_assigned} AND CR.status = 'FINISHED'    
     `;
     if (!rawData.length) return [];  
-    const formatted = rawData.map(item => {
+    const formatted = rawData.map((item: any) => {
         const clientObj = parseJsonIfNeeded(item.client) || {};
         const driverObj = parseJsonIfNeeded(item.driver) || {};
         return {

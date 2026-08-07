@@ -27,7 +27,7 @@ export const update = async (id: number, data: UpdateUserInput, file?: Express.M
             }
         }
     });
-   const formattedRoles = updatedUser.roles.map((userRole) => ({
+   const formattedRoles = updatedUser.roles.map((userRole: any) => ({
         id: userRole.role.id,
         fullname: userRole.role.fullname,
         route: userRole.role.route,

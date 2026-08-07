@@ -25,7 +25,7 @@ export const getByClientRequest = async (idClientRequest: number) => {
             }
         }
     })
-    return offers.map((offer) => ({
+    return offers.map((offer: any) => ({
         id: offer.id,
         id_driver: offer.id_driver,
         id_client_request: offer.id_client_request,

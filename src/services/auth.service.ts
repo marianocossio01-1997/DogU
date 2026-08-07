@@ -13,7 +13,7 @@ export const register = async (data: CreateUserInput & { role?: string }) => {
     }
     const hashPassword = await bcrypt.hash(password, 10);
     const roleId = role === 'DRIVER' ? 'DRIVER' : 'CLIENT';
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: any) => {
         const user = await tx.user.create({
             data: {
                 fullname: fullname,
@@ -87,13 +87,13 @@ export const loginUser = async (data: LoginInput) => {
         email: user.email,
     });
     const { password, roles, driverCarInfo, ...userData } = user;
-    const formattedRoles = roles.map((userRole) => ({
+    const formattedRoles = roles.map((userRole: any) => ({
         id: userRole.role.id,
         fullname: userRole.role.fullname,
         route: userRole.role.route,
         image: userRole.role.image,
     }));
-    const hasDriver = roles.some(r => r.role.id === 'DRIVER');
+    const hasDriver = roles.some((r: any) => r.role.id === 'DRIVER');
     const primaryRole = hasDriver ? 'DRIVER' : 'CLIENT';
     return {
         "token": `Bearer ${token}`,
