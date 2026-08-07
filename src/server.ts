@@ -9,7 +9,6 @@ import driverPositionRouter from "./routes/driver_position.routes.js";
 import driverTripOfferRouter from "./routes/driver_trip_offer.routes.js";
 import driverCarInfoRautes from "./routes/driver_car_info.routes.js"
 import path from "path";
-import { file } from 'zod';
 import { fileURLToPath } from 'url';
 import { initializaSocket} from './sockets/socketHandler.js';
 import http from 'http';
@@ -37,8 +36,6 @@ app.use(errorHandler);
 const server = http.createServer(app);
 initializaSocket(server);
 const PORT = process.env.PORT || 3000;
-const HOST = process.env.HOST || "localhost";
-
-server.listen(Number(PORT), HOST, () => {
-   console.log(`Servidor corriendo en http://${HOST}:${PORT}`);
+server.listen(Number(PORT), "0.0.0.0", () => {
+   console.log(`Servidor corriendo en el puerto ${PORT}`);
 });
