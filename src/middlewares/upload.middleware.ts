@@ -8,17 +8,18 @@ const __dirname = path.dirname(__filename);
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        // Si hay params.id (actualización) lo usa; si no, guarda temporalmente en 'temp' o usa el body
-        const idUser = req.params.id || req.body.id || "temp";
-        
+        // Si no viene ID (por ejemplo en el registro), guarda en la carpeta 'temp'
+        const idUser = req.params?.id || req.body?.id || "temp";
         const uploadPath = path.join(__dirname, `../../public/uploads/users/${idUser}`);
         
-        // Crear la carpeta recursivamente si no existe
-        if (!fs.existsSync(uploadPath)) {
-            fs.mkdirSync(uploadPath, { recursive: true });
+        try {
+            if (!fs.existsSync(uploadPath)) {
+                fs.mkdirSync(uploadPath, { recursive: true });
+            }
+            cb(null, uploadPath);
+        } catch (err) {
+            cb(err as Error, uploadPath);
         }
-        
-        cb(null, uploadPath);
     },
     filename: (req, file, cb) => {
         const ext = path.extname(file.originalname);
