@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 import http from 'http';
 import userRouter from "./routes/users.routes.js";
 import { errorHandler } from './middlewares/errorHandler.js';
-import authRouter from "./routes/autn.routes.js";
+import authRouter from "./routes/autn.routes.js"; // Ojo si el archivo físico se llama auth.routes.js
 import clientRequestRouter from "./routes/client_request.routes.js";
 import driverPositionRouter from "./routes/driver_position.routes.js";
 import driverTripOfferRouter from "./routes/driver_trip_offer.routes.js";
@@ -21,15 +21,24 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 
-// Asegurar que la carpeta public/uploads exista al arrancar el servidor
-const uploadsDir = path.join(__dirname, "../public/uploads");
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
+// 📁 ASEGURAR CARPETAS DE SUBIDA (Incluso subcarpetas como 'users')
+const baseUploadsDir = path.join(__dirname, "../public/uploads");
+const usersUploadsDir = path.join(baseUploadsDir, "users");
+
+if (!fs.existsSync(baseUploadsDir)) {
+  fs.mkdirSync(baseUploadsDir, { recursive: true });
+}
+if (!fs.existsSync(usersUploadsDir)) {
+  fs.mkdirSync(usersUploadsDir, { recursive: true });
 }
 
 app.use(cors());
-app.use(express.json());    
+app.use(express.json());
 
+// Servir archivos estáticos antes o después de las rutas
+app.use("/uploads", express.static(baseUploadsDir));
+
+// Rutas de la API
 app.use("/users", userRouter);
 app.use("/auth", authRouter);
 app.use("/drivers-position", driverPositionRouter);
@@ -43,7 +52,7 @@ app.get("/", (req, res) => {
   });
 });
 
-app.use("/uploads", express.static(uploadsDir));
+// Middleware global de errores (siempre al final de las rutas)
 app.use(errorHandler);
 
 const server = http.createServer(app);

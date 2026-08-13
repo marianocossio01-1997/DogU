@@ -5,24 +5,34 @@ import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        const idUser = req.params.id;
+        // Si hay params.id (actualización) lo usa; si no, guarda temporalmente en 'temp' o usa el body
+        const idUser = req.params.id || req.body.id || "temp";
+        
         const uploadPath = path.join(__dirname, `../../public/uploads/users/${idUser}`);
-        fs.mkdirSync(uploadPath, { recursive: true });
+        
+        // Crear la carpeta recursivamente si no existe
+        if (!fs.existsSync(uploadPath)) {
+            fs.mkdirSync(uploadPath, { recursive: true });
+        }
+        
         cb(null, uploadPath);
     },
     filename: (req, file, cb) => {
         const ext = path.extname(file.originalname);
-        cb(null, `profile${ext}`);
+        // Usamos timestamp para evitar colisiones de caché si reenvían la foto
+        cb(null, `profile_${Date.now()}${ext}`);
     }
 });
+
 export const upload = multer({
     storage, 
     fileFilter: (req, file, cb) => {
         const allowed = [ "image/jpeg", "image/png", "image/jpg" ];
-        if(!allowed.includes(file.mimetype)) {
-            return cb(new Error("Solo se permite imagenes JPEG, PNG, JPG"));
+        if (!allowed.includes(file.mimetype)) {
+            return cb(new Error("Solo se permiten imágenes JPEG, PNG, JPG"));
         }
         cb(null, true);
     }    
