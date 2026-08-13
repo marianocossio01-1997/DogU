@@ -8,7 +8,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "tsx watch src/server.ts",
     "build": "npx prisma generate",
-    "start": "npx prisma generate && npx tsx src/server.ts"
+    "start": "npx prisma generate && npx prisma db push && npx tsx src/server.ts"
   },
   "dependencies": {
     "@prisma/adapter-mariadb": "^7.8.0",
