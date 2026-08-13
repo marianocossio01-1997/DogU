@@ -2,13 +2,13 @@
   "name": "apirestnodejs",
   "version": "1.0.0",
   "description": "",
-  "main": "dist/server.js",
+  "main": "src/server.ts",
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "tsx watch src/server.ts",
-    "build": "npx prisma generate && tsc",
-    "start": "npx prisma db push && node dist/server.js"
+    "build": "npx prisma generate",
+    "start": "npx prisma db push && npx tsx src/server.ts"
   },
   "keywords": [],
   "author": "",
