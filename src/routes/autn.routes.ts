@@ -3,10 +3,13 @@ import { validateBody } from "../middlewares/validateBody.js";
 import { loginSchema } from "../validators/auth.validator.js";
 import { login, register } from "../controllers/auth.controller.js";
 import { createUserSchema } from "../validators/user.validator.js";
+import { upload } from "../middlewares/cargar.middleware.js"; // 👈 O la ruta donde tengas tu Multer
 
 const router = express.Router();
 
 router.post("/login", validateBody(loginSchema), login);
-router.post("/register", validateBody(createUserSchema), register);
+
+// 📸 Agregamos Multer ANTES o EN LUGAR de validateBody para capturar los campos de Flutter
+router.post("/register", upload.single("image"), register);
 
 export default router;
