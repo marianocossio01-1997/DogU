@@ -3,7 +3,7 @@ import { validateBody } from "../middlewares/validateBody.js";
 import { loginSchema } from "../validators/auth.validator.js";
 import { login, register } from "../controllers/auth.controller.js";
 import { createUserSchema } from "../validators/user.validator.js";
-import { upload } from "../middlewares/cargar.middleware.js"; // 👈 O la ruta donde tengas tu Multer
+import { upload } from "../middlewares/upload.middleware.js"; // 👈 O la ruta donde tengas tu Multer
 
 const router = express.Router();
 
