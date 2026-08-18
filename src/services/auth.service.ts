@@ -5,40 +5,60 @@ import { generateToken } from "../config/jwt.js";
 import type { CreateUserInput } from "../validators/user.validator.js";
 import type { LoginInput } from "../validators/auth.validator.js";
 
-export const register = async (data: CreateUserInput & { role?: string }) => {
+export const register = async (data: CreateUserInput & { role?: string }, file?: Express.Multer.File) => {
     const { fullname, email, phone, password, role } = data; 
+    
+    if (!email || !password || !fullname) {
+        throw new AppError("Todos los campos principales son obligatorios", 400);
+    }
+
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
         throw new AppError("El correo electrónico ya está registrado", 400);
     }
+
     const hashPassword = await bcrypt.hash(password, 10);
     const roleId = role === 'DRIVER' ? 'DRIVER' : 'CLIENT';
+    const imagePath = file ? `/uploads/users/${file.filename}` : null;
+
     const result = await prisma.$transaction(async (tx) => {
+        // 1. Crear el usuario
         const user = await tx.user.create({
             data: {
                 fullname: fullname,
                 email: email,
-                phone: phone,
+                phone: phone || '',
                 password: hashPassword,
+                image: imagePath,
             }    
         });
-        const selectedRole = await tx.role.findUnique({
-            where: { id: roleId }
+
+        // 2. BUSCAR O CREAR EL ROL AUTOMÁTICAMENTE (Upsert evita el error 404/500)
+        const selectedRole = await tx.role.upsert({
+            where: { id: roleId },
+            update: {},
+            create: {
+                id: roleId,
+                fullname: roleId === 'DRIVER' ? 'Conductor' : 'Cliente',
+                route: roleId === 'DRIVER' ? '/driver' : '/client',
+                image: ''
+            }
         });
 
-        if (!selectedRole) {
-            throw new AppError(`Rol ${roleId} no encontrado en la base de datos`, 404);
-        }
+        // 3. Vincular usuario con el rol
         await tx.userHasRole.create({
             data: {
                 id_user: user.id,
                 id_rol: selectedRole.id
             }
         });
+
+        // 4. Generar Token JWT
         const token = generateToken({
             id: user.id,
             email: user.email,
         });
+
         return {
             token: `Bearer ${token}`,
             user: {
@@ -61,11 +81,13 @@ export const register = async (data: CreateUserInput & { role?: string }) => {
             }
         };
     });
+
     return result;
 };
+
 export const loginUser = async (data: LoginInput) => {
     const user = await prisma.user.findUnique({
-        where: {email: data.email},
+        where: { email: data.email },
         include: {
             roles: {
                 include: { 
@@ -75,26 +97,33 @@ export const loginUser = async (data: LoginInput) => {
             driverCarInfo: true 
         }    
     });
+
     if (!user) {
         throw new AppError("Usuario no encontrado", 404);
     }
+
     const isPasswordValid = await bcrypt.compare(data.password, user.password);
     if (!isPasswordValid) {
         throw new AppError("Contraseña incorrecta", 401);
     }
+
     const token = generateToken({
         id: user.id,
         email: user.email,
     });
+
     const { password, roles, driverCarInfo, ...userData } = user;
+
     const formattedRoles = roles.map((userRole) => ({
         id: userRole.role.id,
         fullname: userRole.role.fullname,
         route: userRole.role.route,
         image: userRole.role.image,
     }));
+
     const hasDriver = roles.some(r => r.role.id === 'DRIVER');
     const primaryRole = hasDriver ? 'DRIVER' : 'CLIENT';
+
     return {
         "token": `Bearer ${token}`,
         "user": {
@@ -105,4 +134,4 @@ export const loginUser = async (data: LoginInput) => {
             roles: formattedRoles
         }
     };
-}
+};
