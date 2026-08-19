@@ -8,8 +8,6 @@ import { upload } from "../middlewares/upload.middleware.js"; // 👈 O la ruta 
 const router = express.Router();
 
 router.post("/login", validateBody(loginSchema), login);
-
-// 📸 Agregamos Multer ANTES o EN LUGAR de validateBody para capturar los campos de Flutter
 router.post("/register", upload.single("image"), register);
 
 export default router;

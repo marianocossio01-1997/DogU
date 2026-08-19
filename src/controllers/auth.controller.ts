@@ -5,7 +5,7 @@ import { createUserSchema } from '../validators/user.validator.js';
 
 export const register = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const result = await authService.register(req.body);
+        const result = await authService.register(req.body, req.file);
         return res.status(200).json(result);
     } catch (error) {
         next(error);
