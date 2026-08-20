@@ -16,7 +16,7 @@ export const createDriverTripOffer = async (data: CreateDriverTripOfferInput) =>
 }
 export const getByClientRequest = async (idClientRequest: number) => {
     const offers = await prisma.driverTripOffer.findMany({
-        where: {id_client_request: idClientRequest},
+        where: { id_client_request: idClientRequest },
         include: {
             driver: {
                 include: {
@@ -24,8 +24,8 @@ export const getByClientRequest = async (idClientRequest: number) => {
                 }
             }
         }
-    })
-    return offers.map((offer) => ({
+    });
+    return offers.map((offer: any) => ({
         id: offer.id,
         id_driver: offer.id_driver,
         id_client_request: offer.id_client_request,
@@ -39,12 +39,11 @@ export const getByClientRequest = async (idClientRequest: number) => {
             fullname: offer.driver.fullname,
             phone: offer.driver.phone,
             image: offer.driver.image ? `http://${process.env.HOST}:${process.env.PORT}${offer.driver.image}` : null,
-
         } : null,
-        car: offer.driver.driverCarInfo ? {
+        car: offer.driver?.driverCarInfo ? {
             brand: offer.driver.driverCarInfo.brand,
             color: offer.driver.driverCarInfo.color,
             plate: offer.driver.driverCarInfo.plate
         } : null,
-    }))
+    }));
 }
