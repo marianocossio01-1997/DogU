@@ -6,6 +6,12 @@ import { generateToken } from "../config/jwt.js";
 import type { CreateUserInput } from "../validators/user.validator.js";
 import type { LoginInput } from "../validators/auth.validator.js";
 
+const buildImageUrl = (imagePath: string | null) => {
+    if (!imagePath) return null;
+    if (imagePath.startsWith('http')) return imagePath;
+    const baseUrl = process.env.PUBLIC_URL || `http://${process.env.HOST || 'localhost'}:${process.env.PORT || 3000}`;
+    return `${baseUrl}${imagePath}`;
+};
 export const register = async (data: CreateUserInput & { role?: string }, file?: Express.Multer.File) => {
     const { fullname, email, phone, password, role } = data; 
     if (!email || !password || !fullname) {
@@ -55,7 +61,7 @@ export const register = async (data: CreateUserInput & { role?: string }, file?:
                 fullname: user.fullname,
                 email: user.email,
                 phone: user.phone,
-                image: user.image,
+                image: buildImageUrl(user.image), 
                 notification_token: user.notification_token,
                 role: selectedRole.id, 
                 driverCarInfo: null,  
@@ -95,14 +101,6 @@ export const loginUser = async (data: LoginInput) => {
         email: user.email,
     });
     const { password, roles, driverCarInfo, ...userData } = user;
-    interface RoleInterface {
-        role: {
-            id: string;
-            fullname: string;
-            route: string;
-            image: string;
-        }
-    }
     const formattedRoles = roles.map((userRole: any) => ({
         id: userRole.role.id,
         fullname: userRole.role.fullname,
@@ -115,7 +113,7 @@ export const loginUser = async (data: LoginInput) => {
         "token": `Bearer ${token}`,
         "user": {
             ...userData,
-            image: userData.image ? `http://${process.env.HOST}:${process.env.PORT}${userData.image}` : null,
+            image: buildImageUrl(userData.image), 
             role: primaryRole, 
             driverCarInfo: driverCarInfo ?? null,
             roles: formattedRoles
