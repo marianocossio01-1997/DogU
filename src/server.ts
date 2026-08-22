@@ -15,33 +15,23 @@ import driverCarInfoRautes from "./routes/driver_car_info.routes.js";
 import { initializaSocket } from './sockets/socketHandler.js';
 
 dotenv.config();
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
 const app = express();
-
-// Rutas físicas absolutas de carpetas
 const publicDir = path.join(__dirname, "../public");
 const baseUploadsDir = path.join(publicDir, "uploads");
 const usersUploadsDir = path.join(baseUploadsDir, "users");
-
-// Creación recursiva de carpetas si no existen
 if (!fs.existsSync(baseUploadsDir)) {
   fs.mkdirSync(baseUploadsDir, { recursive: true });
 }
 if (!fs.existsSync(usersUploadsDir)) {
   fs.mkdirSync(usersUploadsDir, { recursive: true });
 }
-
 app.use(cors());
 app.use(express.json());
-
-// Servir carpetas estáticas (cubre /uploads/... y /public/uploads/...)
 app.use("/uploads", express.static(baseUploadsDir));
 app.use(express.static(publicDir));
 
-// Rutas de la API
 app.use("/users", userRouter);
 app.use("/auth", authRouter);
 app.use("/drivers-position", driverPositionRouter);
@@ -54,12 +44,9 @@ app.get("/", (req, res) => {
     message: "BIENVENIDOS A TODOS"
   });
 });
-
 app.use(errorHandler);
-
 const server = http.createServer(app);
 initializaSocket(server);
-
 const PORT = process.env.PORT || 3000;
 server.listen(Number(PORT), "0.0.0.0", () => {
   console.log(`Servidor corriendo en el puerto ${PORT}`);
