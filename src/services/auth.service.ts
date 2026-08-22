@@ -6,12 +6,27 @@ import { generateToken } from "../config/jwt.js";
 import type { CreateUserInput } from "../validators/user.validator.js";
 import type { LoginInput } from "../validators/auth.validator.js";
 
+// Función centralizada para construir la URL pública absoluta
 const buildImageUrl = (imagePath: string | null) => {
     if (!imagePath) return null;
     if (imagePath.startsWith('http')) return imagePath;
-    const baseUrl = process.env.PUBLIC_URL || `http://${process.env.HOST || 'localhost'}:${process.env.PORT || 3000}`;
-    return `${baseUrl}${imagePath}`;
+
+    // Si Railway nos provee el dominio público, armamos el HTTPS
+    if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+        return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}${imagePath}`;
+    }
+
+    // Si definiste la variable MANUALMENTE en Railway
+    if (process.env.PUBLIC_URL) {
+        return `${process.env.PUBLIC_URL}${imagePath}`;
+    }
+
+    // Fallback local para desarrollo en tu PC
+    const host = process.env.HOST || 'localhost';
+    const port = process.env.PORT || 3000;
+    return `http://${host}:${port}${imagePath}`;
 };
+
 export const register = async (data: CreateUserInput & { role?: string }, file?: Express.Multer.File) => {
     const { fullname, email, phone, password, role } = data; 
     if (!email || !password || !fullname) {
@@ -24,6 +39,7 @@ export const register = async (data: CreateUserInput & { role?: string }, file?:
     const hashPassword = await bcrypt.hash(password, 10);
     const roleId = role === 'DRIVER' ? 'DRIVER' : 'CLIENT';
     const imagePath = file ? `/uploads/users/${file.filename}` : null;
+
     const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         const user = await tx.user.create({
             data: {
@@ -54,6 +70,7 @@ export const register = async (data: CreateUserInput & { role?: string }, file?:
             id: user.id,
             email: user.email,
         });
+
         return {
             token: `Bearer ${token}`,
             user: {
@@ -79,6 +96,7 @@ export const register = async (data: CreateUserInput & { role?: string }, file?:
 
     return result;
 };
+
 export const loginUser = async (data: LoginInput) => {
     const user = await prisma.user.findUnique({
         where: { email: data.email },
