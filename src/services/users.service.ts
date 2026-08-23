@@ -60,9 +60,7 @@ export const findById = async (id: number) => {
     if (!user) {
         throw new AppError("Usuario no encontrado", 404);
     }
-
     const { password, ...userData } = user;
-    
     return {
         ...userData,
         image: buildImageUrl(userData.image),
