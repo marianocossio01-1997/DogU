@@ -8,6 +8,6 @@ import { upload } from "../middlewares/upload.middleware.js";
 const router = express.Router();
 
 router.post("/login", validateBody(loginSchema), login);
-router.post("/register", upload.single("file"), register);
+router.post("/register", upload.single("image"), register);
 
 export default router;
