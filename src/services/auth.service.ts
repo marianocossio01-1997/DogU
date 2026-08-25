@@ -9,15 +9,11 @@ import type { LoginInput } from "../validators/auth.validator.js";
 const buildImageUrl = (imagePath: string | null) => {
     if (!imagePath) return null;
     if (imagePath.startsWith('http')) return imagePath;
-    if (process.env.PUBLIC_URL) {
-        const cleanBase = process.env.PUBLIC_URL.replace(/\/$/, '');
-        return `${cleanBase}${imagePath}`;
-    }
     if (process.env.RAILWAY_PUBLIC_DOMAIN) {
         return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}${imagePath}`;
     }
-    if (process.env.NODE_ENV === 'production') {
-        return `https://dogu-production-813e.up.railway.app${imagePath}`;
+    if (process.env.PUBLIC_URL) {
+        return `${process.env.PUBLIC_URL}${imagePath}`;
     }
     const host = process.env.HOST || 'localhost';
     const port = process.env.PORT || 3000;
