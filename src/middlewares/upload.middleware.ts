@@ -8,10 +8,8 @@ const __dirname = path.dirname(__filename);
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        // Si no viene ID (por ejemplo en el registro), guarda en la carpeta 'temp'
         const idUser = req.params?.id || req.body?.id || "temp";
         const uploadPath = path.join(__dirname, `../../public/uploads/users/${idUser}`);
-        
         try {
             if (!fs.existsSync(uploadPath)) {
                 fs.mkdirSync(uploadPath, { recursive: true });
@@ -23,11 +21,9 @@ const storage = multer.diskStorage({
     },
     filename: (req, file, cb) => {
         const ext = path.extname(file.originalname);
-        // Usamos timestamp para evitar colisiones de caché si reenvían la foto
         cb(null, `profile_${Date.now()}${ext}`);
     }
 });
-
 export const upload = multer({
     storage, 
     fileFilter: (req, file, cb) => {
