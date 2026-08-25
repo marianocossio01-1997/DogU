@@ -31,7 +31,6 @@ if (!fs.existsSync(usersUploadsDir)) {
 }
 app.use(cors());
 app.use(express.json());
-app.use("/uploads/users", express.static(usersUploadsDir)); // <- LÍNEA CLAVE
 app.use("/uploads", express.static(baseUploadsDir));
 app.use(express.static(publicDir));
 
