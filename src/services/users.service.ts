@@ -5,14 +5,12 @@ import { AppError } from "../utils/AppError.js";
 const buildImageUrl = (imagePath: string | null) => {
     if (!imagePath) return null;
     if (imagePath.startsWith('http')) return imagePath;
-
     if (process.env.RAILWAY_PUBLIC_DOMAIN) {
         return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}${imagePath}`;
     }
     if (process.env.PUBLIC_URL) {
         return `${process.env.PUBLIC_URL}${imagePath}`;
     }
-
     const host = process.env.HOST || 'localhost';
     const port = process.env.PORT || 3000;
     return `http://${host}:${port}${imagePath}`;

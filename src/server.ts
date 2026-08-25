@@ -15,12 +15,14 @@ import driverCarInfoRautes from "./routes/driver_car_info.routes.js";
 import { initializaSocket } from './sockets/socketHandler.js';
 
 dotenv.config();
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
 const publicDir = path.join(__dirname, "../public");
 const baseUploadsDir = path.join(publicDir, "uploads");
 const usersUploadsDir = path.join(baseUploadsDir, "users");
+
 if (!fs.existsSync(baseUploadsDir)) {
   fs.mkdirSync(baseUploadsDir, { recursive: true });
 }
@@ -29,6 +31,7 @@ if (!fs.existsSync(usersUploadsDir)) {
 }
 app.use(cors());
 app.use(express.json());
+app.use("/uploads/users", express.static(usersUploadsDir)); // <- LÍNEA CLAVE
 app.use("/uploads", express.static(baseUploadsDir));
 app.use(express.static(publicDir));
 
@@ -40,10 +43,9 @@ app.use("/driver-trip-offers", driverTripOfferRouter);
 app.use("/driver-car-info", driverCarInfoRautes);
 
 app.get("/", (req, res) => {
-  res.json({
-    message: "BIENVENIDOS A TODOS"
-  });
+  res.json({ message: "BIENVENIDOS A TODOS" });
 });
+
 app.use(errorHandler);
 const server = http.createServer(app);
 initializaSocket(server);
