@@ -19,21 +19,32 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
+
+// Rutas de carpetas
 const publicDir = path.join(__dirname, "../public");
 const baseUploadsDir = path.join(publicDir, "uploads");
 const usersUploadsDir = path.join(baseUploadsDir, "users");
 
+// Creación segura de carpetas si no existen
 if (!fs.existsSync(baseUploadsDir)) {
   fs.mkdirSync(baseUploadsDir, { recursive: true });
 }
 if (!fs.existsSync(usersUploadsDir)) {
   fs.mkdirSync(usersUploadsDir, { recursive: true });
 }
+
 app.use(cors());
 app.use(express.json());
+
+// 🔴 CORRECCIÓN CLAVE DE RUTAS ESTÁTICAS PARA RAILWAY:
+// Sirve la carpeta 'public' completa para rutas como /public/uploads/users/...
+app.use("/public", express.static(publicDir));
+// Sirve la carpeta 'uploads' para rutas como /uploads/users/...
 app.use("/uploads", express.static(baseUploadsDir));
+// Sirve archivos directos en raíz pública
 app.use(express.static(publicDir));
 
+// Rutas API
 app.use("/users", userRouter);
 app.use("/auth", authRouter);
 app.use("/drivers-position", driverPositionRouter);
@@ -46,9 +57,11 @@ app.get("/", (req, res) => {
 });
 
 app.use(errorHandler);
+
 const server = http.createServer(app);
 initializaSocket(server);
+
 const PORT = process.env.PORT || 3000;
 server.listen(Number(PORT), "0.0.0.0", () => {
-  console.log(`Servidor corriendo en el puerto ${PORT}`);
+  console.log(`🟢 Servidor corriendo exitosamente en el puerto ${PORT}`);
 });
