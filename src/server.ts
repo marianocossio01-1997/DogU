@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 import http from 'http';
 import userRouter from "./routes/users.routes.js";
 import { errorHandler } from './middlewares/errorHandler.js';
-import authRouter from "./routes/autn.routes.js"; 
+import authRouter from "./routes/autn.routes.js";
 import clientRequestRouter from "./routes/client_request.routes.js";
 import driverPositionRouter from "./routes/driver_position.routes.js";
 import driverTripOfferRouter from "./routes/driver_trip_offer.routes.js";
@@ -15,6 +15,7 @@ import driverCarInfoRautes from "./routes/driver_car_info.routes.js";
 import { initializaSocket } from './sockets/socketHandler.js';
 
 dotenv.config();
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
@@ -29,7 +30,6 @@ if (!fs.existsSync(usersUploadsDir)) {
 }
 app.use(cors());
 app.use(express.json());
-app.use("/public", express.static(publicDir));
 app.use("/uploads", express.static(baseUploadsDir));
 app.use(express.static(publicDir));
 app.use("/users", userRouter);
@@ -46,5 +46,5 @@ const server = http.createServer(app);
 initializaSocket(server);
 const PORT = process.env.PORT || 3000;
 server.listen(Number(PORT), "0.0.0.0", () => {
-  console.log(`🟢 Servidor corriendo exitosamente en el puerto ${PORT}`);
+  console.log(`Servidor corriendo en el puerto ${PORT}`);
 });
