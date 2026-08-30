@@ -5,6 +5,19 @@ import prisma from "../database/prismaClient.js";
 
 let io: Server;
 
+// Helper para garantizar que la imagen siempre tenga el dominio/host correcto de Railway
+const formatImageUrl = (imagePath: string | null | undefined): string | null => {
+    if (!imagePath || imagePath.trim() === '' || imagePath === 'null') return null;
+    const cleanPath = imagePath.trim();
+    if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
+        return cleanPath;
+    }
+    const host = process.env.HOST || '192.168.1.10';
+    const port = process.env.PORT || '3000';
+    const pathWithSlash = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
+    return `http://${host}:${port}${pathWithSlash}`;
+};
+
 export const initializaSocket = (server: Httpserver) => {
     io = new Server(server, {
         cors: {
@@ -35,45 +48,63 @@ export const initializaSocket = (server: Httpserver) => {
             try {
                 const idRequest = data?.id_client_request || data?.id;
                 const idClient = data?.id_client || data?.client?.id || data?.idClient;
+                let clientObj = data?.client || {};
 
-                let clientObj = data?.client;
+                // 1. Buscamos el usuario cliente en la tabla `users` (plural en Prisma)
+                if (idClient) {
+                    try {
+                        const userDb = await prisma.user.findUnique({
+                            where: { id: Number(idClient) },
+                            select: {
+                                id: true,
+                                fullname: true,
+                                email: true,
+                                phone: true,
+                                image: true,
+                            }
+                        });
 
-                // Si no viene la información del cliente o falta su foto, la buscamos directamente en la BD
-                if (idClient && (!clientObj || !clientObj.image)) {
-                    const userDb = await prisma.user.findUnique({
-                        where: { id: Number(idClient) },
-                        select: {
-                            id: true,
-                            fullname: true,
-                            email: true,
-                            phone: true,
-                            image: true,
+                        if (userDb) {
+                            clientObj = {
+                                ...clientObj,
+                                ...userDb
+                            };
                         }
-                    });
-
-                    if (userDb) {
-                        clientObj = userDb;
+                    } catch (dbError) {
+                        console.warn("⚠️ No se pudo consultar prisma.users directamente:", dbError);
                     }
                 }
 
+                // 2. Resolver la ruta final de la foto formateada
+                const rawImage = clientObj?.image || data?.client_image || data?.image || "";
+                const finalImageUrl = formatImageUrl(rawImage);
+
+                // 3. Estructurar cliente con la URL procesada
+                const updatedClient = {
+                    ...clientObj,
+                    image: finalImageUrl
+                };
+
                 const clientRequest = {
                     ...data,
+                    "id": Number(idRequest),
                     "id_socket": socket.id,
-                    "id_client_request": idRequest,
-                    "client": clientObj,
-                    "client_image": clientObj?.image || data?.client_image || ""
+                    "id_client_request": Number(idRequest),
+                    "client": updatedClient,
+                    "client_image": finalImageUrl || ""
                 };
 
                 console.log("📡 Retransmitiendo 'created_client_request' con foto:", {
                     id_request: idRequest,
-                    client_name: clientObj?.fullname,
-                    client_image: clientObj?.image
+                    client_name: updatedClient?.fullname,
+                    client_image: finalImageUrl
                 });
 
                 io.emit("created_client_request", clientRequest);
             } catch (error) {
-                console.error("🚨 Error al procesar 'new_client_request':", error);
-                // Si ocurre algún fallo con la BD, retransmitimos los datos originales
+                console.error("🚨 Error grave al procesar 'new_client_request':", error);
+                
+                // Fallback de retransmisión
                 io.emit("created_client_request", {
                     "id_socket": socket.id,
                     "id_client_request": data?.id_client_request || data?.id,
