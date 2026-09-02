@@ -7,25 +7,18 @@ import type { ClientRequestStatus } from '../generated/prisma/enums.js';
 const normalizeBigInt = (obj: any) => JSON.parse(
     JSON.stringify(obj, (_, value) => typeof value === 'bigint' ? Number(value) : value)
 );
-
 const parseJsonIfNeeded = (val: any) => {
     if (typeof val === 'string') {
         try { return JSON.parse(val); } catch { return val; }
     }
     return val;
 }
-
-// 🟢 HELPER CORREGIDO: Garantiza URLs válidas tanto en Railway como en desarrollo local
 const formatImageUrl = (imagePath: string | null | undefined): string | null => {
     if (!imagePath || imagePath.trim() === '' || imagePath === 'null') return null;
     const cleanPath = imagePath.trim();
-
-    // 1. Si ya es una URL pública completa (HTTP/HTTPS), se mantiene intacta
     if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
         return cleanPath;
     }
-
-    // 2. Si existe un dominio en las variables de entorno (ej. Railway), lo acopla
     const baseUrl = process.env.BASE_URL || process.env.SERVER_URL;
     const pathWithSlash = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
 
@@ -33,11 +26,8 @@ const formatImageUrl = (imagePath: string | null | undefined): string | null => 
         const cleanBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
         return `${cleanBase}${pathWithSlash}`;
     }
-
-    // 3. De la otra forma, retorna la ruta relativa limpia para que Flutter la resuelva
     return pathWithSlash;
 };
-
 export const createClientRequest = async (data: CreateClientRequestInput) => {
     try {
         const requestId = await prisma.$transaction(async (tx: any) => {
@@ -78,8 +68,7 @@ export const createClientRequest = async (data: CreateClientRequestInput) => {
     } catch (e) {
         throw new AppError(`Error al crear la solicitud de viaje: ${e}`, 500);
     }
-};
-
+}
 export const getByClientRequestCreated = async (id: number) => {
     const rawData = await prisma.$queryRaw<any[]>`
         SELECT
@@ -126,7 +115,6 @@ export const getByClientRequestCreated = async (id: number) => {
     };
     return normalizeBigInt(formatted);
 };
-
 export const assignDriver = async (data: AssignDriverInput) => {
     const clientRequest = await prisma.clientRequests.findUnique({
         where: { id: data.id }
@@ -176,7 +164,6 @@ export const updateClientRating = async (data: UpdateClientRatingInput) => {
     });
     return updatedClientRequest;
 };
-
 export const updateDriverRating = async (data: UpdateDriverRatingInput) => {
     const clientRequest = await prisma.clientRequests.findUnique({
         where: { id: data.id }
@@ -192,7 +179,6 @@ export const updateDriverRating = async (data: UpdateDriverRatingInput) => {
     });
     return updatedClientRequest;
 };
-
 export const getTimeAndDistance = async (
     originLat: number,
     originLng: number,
@@ -243,7 +229,6 @@ export const getTimeAndDistance = async (
         recommended_value: recommendedValue,
     };
 };
-
 export const getNearbyClientRequests = async (driverLat: number, driverLng: number) => {
     try {
         const rawData = await prisma.$queryRaw<any[]>`
@@ -334,7 +319,6 @@ export const getNearbyClientRequests = async (driverLat: number, driverLng: numb
         throw new AppError(`Error interno al obtener solicitudes cercanas: ${e.message || e}`, 500);
     }
 };
-
 export const getByClientRequest = async (id: number) => {
     const rawData = await prisma.$queryRaw<any[]>`
         SELECT
@@ -483,7 +467,6 @@ export const getByClientAssigned = async (id_client: number) => {
     });
     return normalizeBigInt(formatted);
 };
-
 export const getByDriverAssigned = async (id_driver_assigned: number) => {
     const rawData = await prisma.$queryRaw<any[]>`
         SELECT

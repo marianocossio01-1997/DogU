@@ -7,10 +7,17 @@ const formatImageUrl = (imagePath: string | null | undefined): string | null => 
     if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
         return cleanPath;
     }
-    const host = process.env.HOST || '192.168.1.10';
-    const port = process.env.PORT || '3000';
     const pathWithSlash = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
-
+    if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+        return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}${pathWithSlash}`;
+    }
+    const baseUrl = process.env.BASE_URL || process.env.SERVER_URL || process.env.PUBLIC_URL;
+    if (baseUrl) {
+        const cleanBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+        return `${cleanBase}${pathWithSlash}`;
+    }
+    const host = process.env.HOST || 'localhost';
+    const port = process.env.PORT || 3000;
     return `http://${host}:${port}${pathWithSlash}`;
 };
 export const createDriverTripOffer = async (data: CreateDriverTripOfferInput) => {
@@ -52,6 +59,7 @@ export const createDriverTripOffer = async (data: CreateDriverTripOfferInput) =>
         } : null,
     };
 };
+
 export const getByClientRequest = async (idClientRequest: number) => {
     const offers = await prisma.driverTripOffer.findMany({
         where: { id_client_request: Number(idClientRequest) },
