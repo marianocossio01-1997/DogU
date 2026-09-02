@@ -10,6 +10,7 @@ const formatImageUrl = (imagePath: string | null | undefined): string | null => 
     const host = process.env.HOST || '192.168.1.10';
     const port = process.env.PORT || '3000';
     const pathWithSlash = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
+
     return `http://${host}:${port}${pathWithSlash}`;
 };
 export const createDriverTripOffer = async (data: CreateDriverTripOfferInput) => {
@@ -53,7 +54,7 @@ export const createDriverTripOffer = async (data: CreateDriverTripOfferInput) =>
 };
 export const getByClientRequest = async (idClientRequest: number) => {
     const offers = await prisma.driverTripOffer.findMany({
-        where: { id_client_request: idClientRequest },
+        where: { id_client_request: Number(idClientRequest) },
         include: {
             driver: {
                 include: {
