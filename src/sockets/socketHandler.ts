@@ -16,6 +16,7 @@ const formatImageUrl = (imagePath: string | null | undefined): string | null => 
     const pathWithSlash = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
     return `http://${host}:${port}${pathWithSlash}`;
 };
+
 export const initializaSocket = (server: Httpserver) => {
     io = new Server(server, {
         cors: {
@@ -23,6 +24,7 @@ export const initializaSocket = (server: Httpserver) => {
             methods: ["GET", "POST"]
         }
     });
+
     io.on("connection", (socket: Socket) => {
         console.log("🟢 Cliente/Conductor conectado a Socket.io:", socket.id);
 
@@ -30,6 +32,8 @@ export const initializaSocket = (server: Httpserver) => {
             console.log("Mensaje recibido:", data);
             io.emit("new_message", "Saludos desde el servidor");
         });
+
+        // 💬 Manejo de chat persistente y en tiempo real
         socket.on("send_message", async (data: any) => {
             try {
                 const idClientRequest = data?.id_client_request || data?.idClientRequest;
@@ -41,6 +45,7 @@ export const initializaSocket = (server: Httpserver) => {
                     console.warn("⚠️ Evento 'send_message' incompleto recibido:", data);
                     return;
                 }
+
                 const payload = {
                     id_client_request: Number(idClientRequest),
                     id_sender: Number(idSender),
@@ -48,9 +53,14 @@ export const initializaSocket = (server: Httpserver) => {
                     message: message,
                     created_at: new Date().toISOString()
                 };
+
                 const channel = `message_received/${idClientRequest}`;
                 console.log(`💬 Retransmitiendo mensaje a '${channel}':`, message);
+                
+                // Emitimos a todos los conectados para que llegue aunque el chat esté minimizado
                 io.emit(channel, payload);
+
+                // Guardar en la base de datos MySQL mediante Prisma
                 await prisma.chatMessage.create({
                     data: {
                         id_client_request: Number(idClientRequest),
@@ -63,6 +73,7 @@ export const initializaSocket = (server: Httpserver) => {
                 console.error("🚨 Error al procesar y guardar 'send_message':", error);
             }
         });
+
         socket.on("change_driver_position", (data: any) => {
             const position = {
                 "id_socket": socket.id,
@@ -72,6 +83,7 @@ export const initializaSocket = (server: Httpserver) => {
             };
             io.emit("new_driver_position", position);
         });
+
         socket.on("new_client_request", async (data: any) => {
             try {
                 const idRequest = data?.id_client_request || data?.id;
@@ -128,6 +140,7 @@ export const initializaSocket = (server: Httpserver) => {
                 });
             }
         });
+
         socket.on("new_driver_offer", async (data: any) => {
             try {
                 if (!data?.id_client_request) {
@@ -186,6 +199,7 @@ export const initializaSocket = (server: Httpserver) => {
                 });
             }
         });
+
         socket.on("new_driver_assigned", (data: any) => {
             const idDriver = data?.id_driver;
             const clientRequest = {
@@ -196,6 +210,7 @@ export const initializaSocket = (server: Httpserver) => {
             console.log(`🚕 Nuevo conductor asignado (${idDriver}) para viaje:`, clientRequest);
             io.emit(`driver_assigned/${idDriver}`, clientRequest);
         });
+
         socket.on("trip_change_driver_position", (data: any) => {
             const idClient = data?.id_client;
             const driverPosition = {
@@ -205,6 +220,7 @@ export const initializaSocket = (server: Httpserver) => {
             };
             io.emit(`trip_new_driver_position/${idClient}`, driverPosition);
         });
+
         socket.on("update_status_trip", (data: any) => {
             const idClientRequest = data?.id_client_request;
             const clientRequest = {
@@ -214,12 +230,14 @@ export const initializaSocket = (server: Httpserver) => {
             };
             io.emit(`new_status_trip/${idClientRequest}`, clientRequest);
         });
+
         socket.on("disconnect_driver", (data: any) => {
             io.emit("driver_disconnected", { 
                 id: data?.id, 
                 id_socket: socket.id 
             });
         });
+
         socket.on("disconnect", () => {
             console.log("🔴 Cliente desconectado:", socket.id);
             io.emit("driver_disconnected", { 
@@ -228,6 +246,7 @@ export const initializaSocket = (server: Httpserver) => {
         });
     });
 };
+
 export const getIO = (): Server => { 
     if (!io) {
         throw new AppError("Socket.io no ha sido inicializado", 500);
