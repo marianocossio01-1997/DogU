@@ -12,16 +12,17 @@ import clientRequestRouter from "./routes/client_request.routes.js";
 import driverPositionRouter from "./routes/driver_position.routes.js";
 import driverTripOfferRouter from "./routes/driver_trip_offer.routes.js";
 import driverCarInfoRautes from "./routes/driver_car_info.routes.js";
+import chatMessageRouter from "./routes/chat_message.routes.js"; // 👈 Importación agregada
 import { initializaSocket } from './sockets/socketHandler.js';
 
 dotenv.config();
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
 const publicDir = path.join(__dirname, "../public");
 const baseUploadsDir = path.join(publicDir, "uploads");
 const usersUploadsDir = path.join(baseUploadsDir, "users");
+
 if (!fs.existsSync(baseUploadsDir)) {
   fs.mkdirSync(baseUploadsDir, { recursive: true });
 }
@@ -38,9 +39,11 @@ app.use("/drivers-position", driverPositionRouter);
 app.use("/client-requests", clientRequestRouter);
 app.use("/driver-trip-offers", driverTripOfferRouter);
 app.use("/driver-car-info", driverCarInfoRautes);
+app.use("/chat", chatMessageRouter); 
 app.get("/", (req, res) => {
   res.json({ message: "BIENVENIDOS A TODOS" });
 });
+
 app.use(errorHandler);
 const server = http.createServer(app);
 initializaSocket(server);

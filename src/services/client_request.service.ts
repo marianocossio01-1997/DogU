@@ -12,7 +12,7 @@ const parseJsonIfNeeded = (val: any) => {
         try { return JSON.parse(val); } catch { return val; }
     }
     return val;
-}
+};
 const formatImageUrl = (imagePath: string | null | undefined): string | null => {
     if (!imagePath || imagePath.trim() === '' || imagePath === 'null') return null;
     const cleanPath = imagePath.trim();
@@ -60,7 +60,6 @@ export const createClientRequest = async (data: CreateClientRequestInput) => {
             `;
             return row?.id ? Number(row?.id) : null;
         });
-
         if (!requestId) {
             throw new AppError('No se pudo obtener el ID de la solicitud creada', 500);
         }
@@ -68,7 +67,7 @@ export const createClientRequest = async (data: CreateClientRequestInput) => {
     } catch (e) {
         throw new AppError(`Error al crear la solicitud de viaje: ${e}`, 500);
     }
-}
+};
 export const getByClientRequestCreated = async (id: number) => {
     const rawData = await prisma.$queryRaw<any[]>`
         SELECT
@@ -88,6 +87,7 @@ export const getByClientRequestCreated = async (id: number) => {
                 'y', ST_Y(destination_position)
             ) AS destination_position,
             JSON_OBJECT(
+                'id', U.id,
                 'fullname', U.fullname,
                 'phone', U.phone,
                 'image', U.image
@@ -132,7 +132,6 @@ export const assignDriver = async (data: AssignDriverInput) => {
     });
     return updatedDriverAssigned;
 };
-
 export const updateStatus = async (data: UpdateClientRequestInput) => {
     const clientRequest = await prisma.clientRequests.findUnique({
         where: { id: data.id }
@@ -148,7 +147,6 @@ export const updateStatus = async (data: UpdateClientRequestInput) => {
     });
     return updatedClientRequest;
 };
-
 export const updateClientRating = async (data: UpdateClientRatingInput) => {
     const clientRequest = await prisma.clientRequests.findUnique({
         where: { id: data.id }
@@ -251,6 +249,7 @@ export const getNearbyClientRequests = async (driverLat: number, driverLng: numb
                 ST_Distance_Sphere(pickup_position, ST_GeomFromText(CONCAT('POINT(', ${driverLng}, ' ', ${driverLat}, ')'), 4326)) AS distance,
                 timestampdiff(MINUTE, CR.updated_at, NOW()) AS time_difference,
                 JSON_OBJECT(
+                    'id', U.id,
                     'fullname', U.fullname,
                     'phone', U.phone,
                     'image', U.image
@@ -279,7 +278,6 @@ export const getNearbyClientRequests = async (driverLat: number, driverLng: numb
         const apikey = process.env.GOOGLE_MAPS_API_KEY;
         const url = "https://maps.googleapis.com/maps/api/distancematrix/json";
         let elements: any[] = [];
-
         try {
             const destinations = data.map((item: any) => `${item.pickup_position.y},${item.pickup_position.x}`).join("|");
             const response = await axios.get(url, {
@@ -298,7 +296,6 @@ export const getNearbyClientRequests = async (driverLat: number, driverLng: numb
         }
         const formatted = data.map((item: any, index: number) => {
             const clientObj = item.client || {};
-
             return {
                 ...item,
                 client: {
@@ -340,11 +337,13 @@ export const getByClientRequest = async (id: number) => {
                 'y', ST_Y(destination_position)
             ) AS destination_position,
             JSON_OBJECT(
+                'id', U.id,
                 'fullname', U.fullname,
                 'phone', U.phone,
                 'image', U.image
             ) AS client,
             JSON_OBJECT(
+                'id', D.id,
                 'fullname', D.fullname,
                 'phone', D.phone,
                 'image', D.image
@@ -369,7 +368,7 @@ export const getByClientRequest = async (id: number) => {
         ON
             DCI.id_driver = CR.id_driver_assigned  
         WHERE
-            CR.id = ${id} AND status = 'ACCEPTED'    
+            CR.id = ${id} AND status IN ('ACCEPTED', 'ON_THE_WAY', 'ARRIVED', 'TRAVELING', 'FINISHED')    
     `;
     if (!rawData.length) return null;  
     const item = rawData[0];
@@ -391,7 +390,6 @@ export const getByClientRequest = async (id: number) => {
     };
     return normalizeBigInt(formatted);
 };
-
 export const getByClientAssigned = async (id_client: number) => {
     const rawData = await prisma.$queryRaw<any[]>`
         SELECT
@@ -415,11 +413,13 @@ export const getByClientAssigned = async (id_client: number) => {
                 'y', ST_Y(destination_position)
             ) AS destination_position,
             JSON_OBJECT(
+                'id', U.id,
                 'fullname', U.fullname,
                 'phone', U.phone,
                 'image', U.image
             ) AS client,
             JSON_OBJECT(
+                'id', D.id,
                 'fullname', D.fullname,
                 'phone', D.phone,
                 'image', D.image
@@ -490,11 +490,13 @@ export const getByDriverAssigned = async (id_driver_assigned: number) => {
                 'y', ST_Y(destination_position)
             ) AS destination_position,
             JSON_OBJECT(
+                'id', U.id,
                 'fullname', U.fullname,
                 'phone', U.phone,
                 'image', U.image
             ) AS client,
             JSON_OBJECT(
+                'id', D.id,
                 'fullname', D.fullname,
                 'phone', D.phone,
                 'image', D.image

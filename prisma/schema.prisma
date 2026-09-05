@@ -1,94 +1,90 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client-js"
 }
 datasource db {
   provider = "mysql"
-  url = env("DATABASE_URL")
+  url      = env("DATABASE_URL")
+
 }
 model User {
-  id                  Int       @id @default(autoincrement())
-  fullname            String
-  email               String    @unique
-  phone               String   
-  image               String?
-  password            String
-  notification_token  String?
-  create_at           DateTime  @default(now())
-  update_at           DateTime  @updatedAt
-
-  roles UserHasRole[]
-  driver_position DriverPosition?
-  client_requests_as_client ClientRequests[] @relation("client")
-  client_requests_as_driver ClientRequests[] @relation("driver")
-  driverTripOffers DriverTripOffer[] @relation("DriverTripOffers")
-  driverCarInfo DriverCarInfo?
+  id                 Int      @id @default(autoincrement())
+  fullname           String
+  email              String   @unique
+  phone              String
+  image              String?
+  password           String
+  notification_token String?
+  create_at          DateTime @default(now())
+  update_at          DateTime @updatedAt
+  roles                     UserHasRole[]
+  driver_position           DriverPosition?
+  client_requests_as_client ClientRequests[]  @relation("client")
+  client_requests_as_driver ClientRequests[]  @relation("driver")
+  driverTripOffers          DriverTripOffer[] @relation("DriverTripOffers")
+  driverCarInfo             DriverCarInfo?
+  sent_messages             ChatMessage[]     @relation("sent_messages")
+  received_messages         ChatMessage[]     @relation("received_messages")
   @@map("users")
-}
-model Role{
-  id          String    @id
-  fullname    String    @unique @db.VarChar(25)
-  image       String    @db.VarChar(255)
-  route       String    @db.VarChar(255)
-  create_at   DateTime  @default(now())   
-  update_at   DateTime  @updatedAt 
 
-  users UserHasRole[]  
-  @@map("roles")
 }
-model UserHasRole{
+model Role {
+  id        String   @id
+  fullname  String   @unique @db.VarChar(25)
+  image     String   @db.VarChar(255)
+  route     String   @db.VarChar(255)
+  create_at DateTime @default(now())
+  update_at DateTime @updatedAt
+  users UserHasRole[]
+  @@map("roles")
+
+}
+model UserHasRole {
   id_user Int
   id_rol  String
-  user User @relation(fields: [id_user], references: [id], onDelete: Cascade, onUpdate: Cascade)  
-  role Role @relation(fields: [id_rol], references: [id], onDelete: Cascade, onUpdate: Cascade)
-
+  user    User   @relation(fields: [id_user], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  role    Role   @relation(fields: [id_rol], references: [id], onDelete: Cascade, onUpdate: Cascade)
   @@id([id_user, id_rol])
   @@map("users_has_roles")
+
 }
 model DriverPosition {
-  id_driver Int @id
-  user User @relation(fields: [id_driver], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  position Unsupported("POINT")
-
+  id_driver Int                   @id
+  user      User                  @relation(fields: [id_driver], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  position  Unsupported("POINT")
   @@map("drivers_position")
+
 }
 model TimeAndDistanceValues {
-  id         Int   @id
-  km_value   Float
-  min_value  Float
-
+  id        Int   @id
+  km_value  Float
+  min_value Float
   @@map("time_and_distance_values")
+
 }
 model ClientRequests {
-  id                      Int  @id  @default(autoincrement())
-  id_client               Int
-  id_driver_assigned      Int?
-
-  client User @relation("client", fields: [id_client], references: [id])
+  id                 Int      @id @default(autoincrement())
+  id_client          Int
+  id_driver_assigned Int?
+  client User  @relation("client", fields: [id_client], references: [id])
   driver User? @relation("driver", fields: [id_driver_assigned], references: [id])
-
-  fare_offered             Float
-  fare_assigned            Float?
-
-  client_rating            Float?
-  driver_rating            Float?
-
-  pickup_description       String   @db.VarChar(255)
-  destination_description  String   @db.VarChar(255)
-
-  pickup_position Unsupported("POINT")?
+  fare_offered  Float
+  fare_assigned Float?
+  client_rating Float?
+  driver_rating Float?
+  pickup_description      String @db.VarChar(255)
+  destination_description String @db.VarChar(255)
+  pickup_position      Unsupported("POINT")?
   destination_position Unsupported("POINT")?
-
-  status ClientRequestStatus        @default(CREATED)
-  created_at               DateTime @default(now())   
-  updated_at               DateTime @updatedAt       
-
+  status     ClientRequestStatus @default(CREATED)
+  created_at DateTime            @default(now())
+  updated_at DateTime            @updatedAt
   driverTripOffers DriverTripOffer[]
+  chat_messages    ChatMessage[]
   @@map("client_requests")
+
 }
 enum ClientRequestStatus {
   CREATED
@@ -98,34 +94,44 @@ enum ClientRequestStatus {
   TRAVELING
   FINISHED
   CANCELLED
-} 
+
+}
 model DriverTripOffer {
-  id                Int      @id  @default(autoincrement())
+  id                Int @id @default(autoincrement())
   id_driver         Int
   id_client_request Int
-
-  fare_offered      Float
-  time              Float
-  distance          Float 
-
-  created_at        DateTime @default(now())   
-  updated_at        DateTime @updatedAt
-
-  driver User @relation("DriverTripOffers", fields: [id_driver], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  fare_offered Float
+  time         Float
+  distance     Float
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  driver        User           @relation("DriverTripOffers", fields: [id_driver], references: [id], onDelete: Cascade, onUpdate: Cascade)
   clientRequest ClientRequests @relation(fields: [id_client_request], references: [id], onDelete: Cascade, onUpdate: Cascade)
-
   @@map("driver_trip_offers")
+
 }
-model DriverCarInfo{
-  id_driver   Int       @id 
-  brand       String    @db.VarChar(50)
-  color       String    @db.VarChar(50)
-  plate       String    @db.VarChar(50)
-
+model DriverCarInfo {
+  id_driver Int    @id
+  brand     String @db.VarChar(50)
+  color     String @db.VarChar(50)
+  plate     String @db.VarChar(50)
   driver User @relation(fields: [id_driver], references: [id], onDelete: Cascade, onUpdate: Cascade)
-
-  created_at  DateTime  @default(now())   
-  updated_at  DateTime  @updatedAt  
-
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
   @@map("driver_car_info")
+
+}
+model ChatMessage {
+  id                Int      @id @default(autoincrement())
+  id_client_request Int
+  id_sender         Int
+  id_receiver       Int
+  message           String   @db.Text
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+  client_request ClientRequests @relation(fields: [id_client_request], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  sender         User           @relation("sent_messages", fields: [id_sender], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  receiver       User           @relation("received_messages", fields: [id_receiver], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  @@map("chat_messages")
+  
 }

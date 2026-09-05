@@ -4,6 +4,7 @@ import { AppError } from "../utils/AppError.js";
 import prisma from "../database/prismaClient.js";
 
 let io: Server;
+
 const formatImageUrl = (imagePath: string | null | undefined): string | null => {
     if (!imagePath || imagePath.trim() === '' || imagePath === 'null') return null;
     const cleanPath = imagePath.trim();
@@ -28,6 +29,39 @@ export const initializaSocket = (server: Httpserver) => {
         socket.on("message", (data: any) => {
             console.log("Mensaje recibido:", data);
             io.emit("new_message", "Saludos desde el servidor");
+        });
+        socket.on("send_message", async (data: any) => {
+            try {
+                const idClientRequest = data?.id_client_request || data?.idClientRequest;
+                const idSender = data?.id_sender || data?.idSender;
+                const idReceiver = data?.id_receiver || data?.idReceiver;
+                const message = data?.message;
+
+                if (!idClientRequest || !idSender || !idReceiver || !message) {
+                    console.warn("⚠️ Evento 'send_message' incompleto recibido:", data);
+                    return;
+                }
+                const payload = {
+                    id_client_request: Number(idClientRequest),
+                    id_sender: Number(idSender),
+                    id_receiver: Number(idReceiver),
+                    message: message,
+                    created_at: new Date().toISOString()
+                };
+                const channel = `message_received/${idClientRequest}`;
+                console.log(`💬 Retransmitiendo mensaje a '${channel}':`, message);
+                io.emit(channel, payload);
+                await prisma.chatMessage.create({
+                    data: {
+                        id_client_request: Number(idClientRequest),
+                        id_sender: Number(idSender),
+                        id_receiver: Number(idReceiver),
+                        message: message,
+                    }
+                });
+            } catch (error) {
+                console.error("🚨 Error al procesar y guardar 'send_message':", error);
+            }
         });
         socket.on("change_driver_position", (data: any) => {
             const position = {
