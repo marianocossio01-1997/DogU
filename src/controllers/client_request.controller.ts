@@ -10,6 +10,137 @@ export const createClientRequest = async (req: Request, res: Response, next: Nex
         next(error);
     }           
 };
+
+export const assignDriver = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const body = req.body;
+        const result = await clientRequestService.assignDriver(body);
+        return res.status(200).json(result);
+    } catch (error) {
+        next(error);
+    }           
+};
+
+export const updateClientRequest = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const body = req.body;
+        const result = await clientRequestService.updateStatus(body);
+        return res.status(200).json(result);
+    } catch (error) {
+        next(error);
+    }           
+};
+
+export const getByClientAssigned = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const id_client = Number(req.params.id_client);
+        const result = await clientRequestService.getByClientAssigned(id_client);
+        return res.status(200).json(result);
+    } catch (error) {
+        next(error);
+    }           
+};
+
+export const getByDriverAssigned = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const id_driver_assigned = Number(req.params.id_driver_assigned);
+        const result = await clientRequestService.getByDriverAssigned(id_driver_assigned);
+        return res.status(200).json(result);
+    } catch (error) {
+        next(error);
+    }           
+};
+
+export const updateClientRating = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const body = req.body;
+        const result = await clientRequestService.updateClientRating(body);
+        return res.status(200).json(result);
+    } catch (error) {
+        next(error);
+    }           
+};
+
+export const updateDriverRating = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const body = req.body;
+        const result = await clientRequestService.updateDriverRating(body);
+        return res.status(200).json(result);
+    } catch (error) {
+        next(error);
+    }           
+};
+
+export const getNearbyClientRequests = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const driverLat = Number(req.params.driver_lat);
+        const driverLng = Number(req.params.driver_lng);
+
+        if (isNaN(driverLat) || isNaN(driverLng)) {
+            return res.status(400).json({ message: "Las coordenadas de latitud y longitud son inválidas" });
+        }
+
+        const result = await clientRequestService.getNearbyClientRequests(driverLat, driverLng);
+        return res.status(200).json(result);
+    } catch (error) {
+        console.error("💥 Error en getNearbyClientRequests Controller:", error);
+        next(error);
+    }           
+};
+
+export const getByClientRequest = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const id = Number(req.params.id);
+        const result = await clientRequestService.getByClientRequest(id);
+        return res.status(200).json(result);
+    } catch (error) {
+        next(error);
+    }           
+};
+
+export const getTimeAndDistance = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        // Lee los valores tanto de req.params como de req.query por flexibilidad
+        const originLat = Number(req.params.origin_lat ?? req.query.originLat);
+        const originLng = Number(req.params.origin_lng ?? req.query.originLng);
+        const destinationLat = Number(req.params.destination_lat ?? req.query.destinationLat);
+        const destinationLng = Number(req.params.destination_lng ?? req.query.destinationLng);
+
+        // Opcional: Si el cliente envía countryCode o country_code en params o query
+        const countryCode = (req.params.country_code ?? req.query.countryCode ?? req.query.country_code) as string | undefined;
+
+        if (isNaN(originLat) || isNaN(originLng) || isNaN(destinationLat) || isNaN(destinationLng)) {
+            return res.status(400).json({ message: "Las coordenadas de origen y destino son requeridas y deben ser números válidos" });
+        }
+
+        const data = await clientRequestService.getTimeAndDistance(
+            originLat,
+            originLng,
+            destinationLat,
+            destinationLng,
+            countryCode
+        );
+
+        return res.status(200).json(data);
+    } catch (error) {
+        next(error);
+    }           
+};
+
+
+
+/* import type { Request, Response, NextFunction } from 'express';
+import * as clientRequestService from "../services/client_request.service.js"; 
+
+export const createClientRequest = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const body = req.body;
+        const result = await clientRequestService.createClientRequest(body);
+        return res.status(201).json(result);
+    } catch (error) {
+        next(error);
+    }           
+};
 export const assignDriver = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const body = req.body;
@@ -101,3 +232,4 @@ export const getTimeAndDistance = async (req: Request, res: Response, next: Next
         next(error);
     }           
 };
+ */
