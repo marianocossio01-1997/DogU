@@ -206,16 +206,16 @@ export const updateDriverRating = async (data: UpdateDriverRatingInput) => {
     });
     return updatedClientRequest;
 };
-
 export const getTimeAndDistance = async (
     originLat: number,
     originLng: number,
     destinationLat: number,
     destinationLng: number,
-    countryCode?: string // 👈 Ahora es opcional
+    countryCode?: string
 ) => {
     const apikey = process.env.GOOGLE_MAPS_API_KEY;
     if (!apikey) {
+        console.error("🚨 GOOGLE_MAPS_API_KEY no está definida en las variables de entorno");
         throw new AppError("No se ha configurado GOOGLE_MAPS_API_KEY en el servidor", 500);
     }
 
@@ -231,26 +231,32 @@ export const getTimeAndDistance = async (
             }
         });
     } catch (error: any) {
+        console.error("🚨 Error al conectar con Google Maps API:", error?.message || error);
         throw new AppError("Error al conectarse al API de Google Distance", 500);
     } 
+
     const body = response.data;
+    console.log("📡 Google API Status:", body.status);
     
     if (body.status !== 'OK') {
+        console.error("🚨 Google API devolvió estatus no OK:", body.error_message || body.status);
         throw new AppError(`Respuesta no válida del API de Google: ${body.status}`, 500);
     }
+
     const element = body.rows?.[0]?.elements?.[0];
     if (!element || element.status !== "OK") {
-        throw new AppError(`No se puede calcular la distancia y duración`, 500);
+        console.error("🚨 Elemento de ruta no válido en Google API:", element?.status);
+        throw new AppError(`No se puede calcular la distancia y duración para la ruta seleccionada`, 500);
     }
-    const distanceValue = element.distance.value; 
-    const durationValue = element.duration.value; 
+
+    const distanceValue = element.distance.value; // metros
+    const durationValue = element.duration.value; // segundos
     const km = distanceValue / 1000;
     const minutes = durationValue / 60;
 
     // 🌐 1. RESOLVER EL CÓDIGO DEL PAÍS
     let targetCountryCode = countryCode?.trim().toUpperCase();
 
-    // Si la app no envió el countryCode, detectarlo automáticamente por GPS
     if (!targetCountryCode) {
         const detected = await getCountryCodeFromCoordinates(originLat, originLng, apikey);
         if (detected) {
@@ -267,16 +273,16 @@ export const getTimeAndDistance = async (
         });
     }
 
-    // Fallback: Si el país no existe o no está activo, tomar el primer país activo disponible (ej. Argentina)
+    // Fallback si no encuentra el país o no está activo (Usa Argentina como predeterminado)
     if (!countryConfig || !countryConfig.is_active) {
         countryConfig = await prisma.countryConfig.findFirst({
-            where: { is_active: true },
+            where: { country_code: 'AR', is_active: true },
             include: { pricing_configs: true }
         });
     }
 
     if (!countryConfig || !countryConfig.pricing_configs?.[0]) {
-        throw new AppError(`No se encontraron tarifas configuradas para la ubicación seleccionada`, 404);
+        throw new AppError(`No se encontraron tarifas configuradas para el país`, 404);
     }
 
     const pricing = countryConfig.pricing_configs[0];
@@ -299,8 +305,8 @@ export const getTimeAndDistance = async (
         currency_symbol: countryConfig.currency_symbol,   
         exchange_rate: countryConfig.exchange_rate,
         recommended_value: recommendedValueLocal,          
-        origin_addresses: body.origin_addresses[0],
-        destination_addresses: body.destination_addresses[0],
+        origin_addresses: body.origin_addresses?.[0] ?? 'Origen',
+        destination_addresses: body.destination_addresses?.[0] ?? 'Destino',
     };
 };
 
