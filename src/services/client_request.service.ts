@@ -181,6 +181,73 @@ export const getTimeAndDistance = async (
     originLat: number,
     originLng: number,
     destinationLat: number,
+    destinationLng: number,
+    countryCode: string
+) => {
+    const apikey = process.env.GOOGLE_MAPS_API_KEY;
+    const url = "https://maps.googleapis.com/maps/api/distancematrix/json";
+    let response;
+    try {
+        response = await axios.get(url, {
+            params: {
+                origins: `${originLat},${originLng}`,
+                destinations: `${destinationLat},${destinationLng}`,
+                units: "metric",
+                key: apikey
+            }
+        });
+    } catch (error: any) {
+        throw new AppError("Error al conectarse al API de Google Distance", 500);
+    } 
+    const body = response.data;
+    
+    if (body.status !== 'OK') {
+        throw new AppError(`Respuesta no válida del API de Google: ${body.status}`, 500);
+    }
+    const element = body.rows?.[0]?.elements?.[0];
+    if (!element || element.status !== "OK") {
+        throw new AppError(`No se puede calcular la distancia y duración`, 500);
+    }
+    const distanceValue = element.distance.value; 
+    const durationValue = element.duration.value; 
+    const km = distanceValue / 1000;
+    const minutes = durationValue / 60;
+    const countryConfig = await prisma.countryConfig.findUnique({
+        where: { country_code: countryCode.toUpperCase() },
+        include: { pricing_configs: true }
+    });
+
+    if (!countryConfig || !countryConfig.is_active) {
+        throw new AppError(`El país '${countryCode}' no está configurado o no se encuentra activo`, 404);
+    }
+    const pricing = countryConfig.pricing_configs[0];
+    if (!pricing) {
+        throw new AppError(`No se encontraron tarifas configuradas para el país '${countryCode}'`, 404);
+    }
+    const totalUsd = pricing.base_fare_usd + (km * pricing.km_value_usd) + (minutes * pricing.min_value_usd);
+    const recommendedValueLocal = Math.round(totalUsd * countryConfig.exchange_rate);
+    return {
+        distance: {
+            text: element.distance.text,
+            value: distanceValue
+        },
+        duration: {
+            text: element.duration.text,
+            value: durationValue
+        },
+        country_code: countryConfig.country_code,
+        currency_code: countryConfig.currency_code,       
+        currency_symbol: countryConfig.currency_symbol,   
+        exchange_rate: countryConfig.exchange_rate,
+        recommended_value: recommendedValueLocal,          
+        origin_addresses: body.origin_addresses[0],
+        destination_addresses: body.destination_addresses[0],
+    };
+};
+/* export const getTimeAndDistance = async (
+    originLat: number,
+    originLng: number,
+    destinationLat: number,
     destinationLng: number
 ) => {
     const apikey = process.env.GOOGLE_MAPS_API_KEY;
@@ -226,7 +293,7 @@ export const getTimeAndDistance = async (
         destination_addresses: body.destination_addresses[0],
         recommended_value: recommendedValue,
     };
-};
+}; */
 export const getNearbyClientRequests = async (driverLat: number, driverLng: number) => {
     try {
         const rawData = await prisma.$queryRaw<any[]>`
