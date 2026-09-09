@@ -206,6 +206,7 @@ export const updateDriverRating = async (data: UpdateDriverRatingInput) => {
     });
     return updatedClientRequest;
 };
+
 export const getTimeAndDistance = async (
     originLat: number,
     originLng: number,
@@ -281,15 +282,21 @@ export const getTimeAndDistance = async (
         });
     }
 
-    if (!countryConfig || !countryConfig.pricing_configs?.[0]) {
-        throw new AppError(`No se encontraron tarifas configuradas para el país`, 404);
-    }
+    // Fallback si la base de datos no devuelve configuración
+    const pricing = countryConfig?.pricing_configs?.[0] || {
+        base_fare_usd: 1.5,
+        km_value_usd: 1.2,
+        min_value_usd: 0.09
+    };
 
-    const pricing = countryConfig.pricing_configs[0];
+    const exchangeRate = countryConfig?.exchange_rate ?? 1500;
+    const currencyCode = countryConfig?.currency_code ?? 'ARS';
+    const currencySymbol = countryConfig?.currency_symbol ?? '$';
+    const resolvedCountryCode = countryConfig?.country_code ?? 'AR';
 
-    // 🌐 3. CÁLCULO DE LA TARIFA RECOMENDADA
+    // 🌐 3. CÁLCULO DE LA TARIFA RECOMENDADA EN MONEDA LOCAL
     const totalUsd = pricing.base_fare_usd + (km * pricing.km_value_usd) + (minutes * pricing.min_value_usd);
-    const recommendedValueLocal = Math.round(totalUsd * countryConfig.exchange_rate);
+    const recommendedValueLocal = Math.round(totalUsd * exchangeRate);
 
     return {
         distance: {
@@ -300,10 +307,10 @@ export const getTimeAndDistance = async (
             text: element.duration.text,
             value: durationValue
         },
-        country_code: countryConfig.country_code,
-        currency_code: countryConfig.currency_code,       
-        currency_symbol: countryConfig.currency_symbol,   
-        exchange_rate: countryConfig.exchange_rate,
+        country_code: resolvedCountryCode,
+        currency_code: currencyCode,       
+        currency_symbol: currencySymbol,   
+        exchange_rate: exchangeRate,
         recommended_value: recommendedValueLocal,          
         origin_addresses: body.origin_addresses?.[0] ?? 'Origen',
         destination_addresses: body.destination_addresses?.[0] ?? 'Destino',
