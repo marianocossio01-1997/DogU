@@ -6,6 +6,7 @@ import prisma from "../database/prismaClient.js";
 let io: Server;
 const activeDriversMap = new Map<number, { id: number; lat: number; lng: number; updatedAt: number }>();
 const socketToDriverMap = new Map<string, number>();
+
 const formatImageUrl = (imagePath: string | null | undefined): string | null => {
     if (!imagePath || imagePath.trim() === '' || imagePath === 'null') return null;
     const cleanPath = imagePath.trim();
@@ -16,6 +17,7 @@ const formatImageUrl = (imagePath: string | null | undefined): string | null => 
     const pathWithSlash = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
     return `${baseUrl}${pathWithSlash}`;
 };
+
 export const initializaSocket = (server: Httpserver) => {
     io = new Server(server, {
         cors: {
@@ -23,8 +25,10 @@ export const initializaSocket = (server: Httpserver) => {
             methods: ["GET", "POST"]
         }
     });
+
     io.on("connection", (socket: Socket) => {
         console.log("🟢 Cliente/Conductor conectado a Socket.io:", socket.id);
+
         socket.on("change_driver_position", (data: any) => {
             const driverId = Number(data?.id || data?.id_driver);
             const lat = Number(data?.lat);
@@ -32,12 +36,14 @@ export const initializaSocket = (server: Httpserver) => {
 
             if (driverId && lat && lng) {
                 socketToDriverMap.set(socket.id, driverId);
+
                 activeDriversMap.set(driverId, {
                     id: driverId,
                     lat: lat,
                     lng: lng,
                     updatedAt: Date.now()
                 });
+
                 const position = {
                     "id_socket": socket.id,
                     "id": driverId,
@@ -48,6 +54,7 @@ export const initializaSocket = (server: Httpserver) => {
                 io.emit("new_driver_position", position);
             }
         });
+
         socket.on("get_nearby_drivers", async (data: any) => {
             try {
                 const driversFromMemory = Array.from(activeDriversMap.values()).filter(
@@ -58,6 +65,7 @@ export const initializaSocket = (server: Httpserver) => {
                     socket.emit("nearby_drivers", driversFromMemory);
                     return;
                 }
+
                 const dbDrivers = await prisma.driverPosition.findMany({
                     take: 15
                 });
@@ -74,6 +82,7 @@ export const initializaSocket = (server: Httpserver) => {
                 socket.emit("nearby_drivers", []);
             }
         });
+
         socket.on("created_client_request", (data: any) => {
             console.log("📢 Nueva solicitud de viaje creada:", data?.id || data?.id_client_request);
             io.emit("created_client_request", data);
@@ -85,10 +94,19 @@ export const initializaSocket = (server: Httpserver) => {
             io.emit("created_client_request", data);
             io.emit("new_client_request", data);
         });
+
+        // 📢 RETRANSMISIÓN DE OFERTAS DEL CONDUCTOR -> AL CLIENTE (FIX)
         socket.on("new_driver_offer", (data: any) => {
             console.log("📢 Nueva oferta enviada por conductor:", data);
+            const idClientRequest = data?.id_client_request || data?.idClientRequest;
+
+            if (idClientRequest) {
+                io.emit(`created_driver_offer/${idClientRequest}`, data);
+            }
             io.emit("new_driver_offer", data);
+            io.emit("created_driver_offer", data);
         });
+
         socket.on("disconnect_driver", (data: any) => {
             const driverId = Number(data?.id || data?.id_driver) || socketToDriverMap.get(socket.id);
             
@@ -99,6 +117,7 @@ export const initializaSocket = (server: Httpserver) => {
                 io.emit("driver_disconnected", { id: driverId, id_socket: socket.id });
             }
         });
+
         socket.on("disconnect", () => {
             console.log("🔴 Socket desconectado:", socket.id);
             const driverId = socketToDriverMap.get(socket.id);
@@ -112,6 +131,7 @@ export const initializaSocket = (server: Httpserver) => {
         });
     });
 };
+
 export const getIO = (): Server => { 
     if (!io) {
         throw new AppError("Socket.io no ha sido inicializado", 500);
