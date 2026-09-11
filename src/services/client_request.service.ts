@@ -134,6 +134,82 @@ export const getByClientRequestCreated = async (id: number) => {
     };
     return normalizeBigInt(formatted);
 };
+export const getByClientRequest = async (id: number) => {
+    const rawData = await prisma.$queryRaw<any[]>`
+        SELECT
+            CR.id,
+            CR.id_client, 
+            CR.id_driver_assigned,
+            CR.fare_offered,
+            CR.fare_assigned,
+            CR.pickup_description,
+            CR.destination_description,
+            CR.status,
+            CR.updated_at,
+            CR.client_rating,
+            CR.driver_rating,
+            JSON_OBJECT(
+                'x', ST_X(pickup_position),
+                'y', ST_Y(pickup_position)
+            ) AS pickup_position,
+            JSON_OBJECT(
+                'x', ST_X(destination_position),
+                'y', ST_Y(destination_position)
+            ) AS destination_position,
+            JSON_OBJECT(
+                'id', U.id,
+                'fullname', U.fullname,
+                'phone', U.phone,
+                'image', U.image
+            ) AS client,
+            JSON_OBJECT(
+                'id', D.id,
+                'fullname', D.fullname,
+                'phone', D.phone,
+                'image', D.image
+            ) AS driver,
+            JSON_OBJECT(
+                'brand', DCI.brand,
+                'color', DCI.color,
+                'plate', DCI.plate
+            ) AS car
+        FROM
+            client_requests AS CR  
+        INNER JOIN
+            users AS U  
+        ON
+            U.id = CR.id_client  
+        LEFT JOIN
+            users AS D  
+        ON
+            D.id = CR.id_driver_assigned
+        LEFT JOIN
+            driver_car_info AS DCI
+        ON
+            DCI.id_driver = CR.id_driver_assigned  
+        WHERE
+            CR.id = ${id}
+    `;
+    if (!rawData.length) return null;  
+    const item = rawData[0];
+    const clientObj = parseJsonIfNeeded(item.client) || {};
+    const driverObj = parseJsonIfNeeded(item.driver) || {};
+    const formatted = {
+        ...item,
+        pickup_position: parseJsonIfNeeded(item.pickup_position),
+        destination_position: parseJsonIfNeeded(item.destination_position),
+        car: parseJsonIfNeeded(item.car),
+        client: {
+            ...clientObj,
+            image: formatImageUrl(clientObj.image)
+        },
+        driver: {
+            ...driverObj,
+            image: formatImageUrl(driverObj.image)
+        },
+    };
+    return normalizeBigInt(formatted);
+};
 export const assignDriver = async (data: AssignDriverInput) => {
     const clientRequest = await prisma.clientRequests.findUnique({
         where: { id: data.id }
@@ -288,7 +364,6 @@ export const getTimeAndDistance = async (
         destination_addresses: body.destination_addresses?.[0] ?? 'Destino',
     };
 };
-
 export const getNearbyClientRequests = async (driverLat: number, driverLng: number) => {
     try {
         const rawData = await prisma.$queryRaw<any[]>`
@@ -327,7 +402,6 @@ export const getNearbyClientRequests = async (driverLat: number, driverLng: numb
             HAVING
                 distance <= 5000000  
         `;
-
         if (!rawData || !rawData.length) {
             return [];
         }
