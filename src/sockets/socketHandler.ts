@@ -4,8 +4,6 @@ import { AppError } from "../utils/AppError.js";
 import prisma from "../database/prismaClient.js";
 
 let io: Server;
-
-// Cache en memoria para posiciones de choferes activos (Ultrarrápido)
 const activeDriversMap = new Map<number, { id: number; lat: number; lng: number; updatedAt: number }>();
 
 const formatImageUrl = (imagePath: string | null | undefined): string | null => {
@@ -19,7 +17,6 @@ const formatImageUrl = (imagePath: string | null | undefined): string | null => 
     const pathWithSlash = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
     return `http://${host}:${port}${pathWithSlash}`;
 };
-
 export const initializaSocket = (server: Httpserver) => {
     io = new Server(server, {
         cors: {
@@ -27,7 +24,6 @@ export const initializaSocket = (server: Httpserver) => {
             methods: ["GET", "POST"]
         }
     });
-
     io.on("connection", (socket: Socket) => {
         console.log("🟢 Cliente/Conductor conectado a Socket.io:", socket.id);
 
@@ -35,8 +31,6 @@ export const initializaSocket = (server: Httpserver) => {
             console.log("Mensaje recibido:", data);
             io.emit("new_message", "Saludos desde el servidor");
         });
-
-        // 💬 CHAT EN TIEMPO REAL
         socket.on("send_message", async (data: any) => {
             try {
                 const idClientRequest = data?.id_client_request || data?.idClientRequest;
@@ -71,22 +65,18 @@ export const initializaSocket = (server: Httpserver) => {
                 console.error("🚨 Error al procesar y guardar 'send_message':", error);
             }
         });
-
-        // 🚘 CAMBIO DE POSICIÓN DEL CHOFER EN VIVO
         socket.on("change_driver_position", (data: any) => {
             const driverId = Number(data?.id || data?.id_driver);
             const lat = Number(data?.lat);
             const lng = Number(data?.lng);
 
             if (driverId && lat && lng) {
-                // Guardar en caché rápida
                 activeDriversMap.set(driverId, {
                     id: driverId,
                     lat: lat,
                     lng: lng,
                     updatedAt: Date.now()
                 });
-
                 const position = {
                     "id_socket": socket.id,
                     "id": driverId,
@@ -97,24 +87,18 @@ export const initializaSocket = (server: Httpserver) => {
                 io.emit("new_driver_position", position);
             }
         });
-
-        // 📡 RESPUESTA A LA CONSULTA DE CONDUCTORES CERCANOS DESDE FLUTTER
         socket.on("get_nearby_drivers", async (data: any) => {
             try {
                 const lat = Number(data?.lat);
                 const lng = Number(data?.lng);
-
-                // 1. Obtener choferes guardados en la cache de memoria del socket (Tiempo real)
                 const driversFromMemory = Array.from(activeDriversMap.values()).filter(
-                    d => Date.now() - d.updatedAt < 10 * 60 * 1000 // Activos en los últimos 10 min
+                    d => Date.now() - d.updatedAt < 10 * 60 * 1000 
                 );
 
                 if (driversFromMemory.length > 0) {
                     socket.emit("nearby_drivers", driversFromMemory);
                     return;
                 }
-
-                // 2. Si la cache está vacía, buscar en Prisma
                 const dbDrivers = await prisma.driverPosition.findMany({
                     take: 15
                 });
@@ -132,8 +116,6 @@ export const initializaSocket = (server: Httpserver) => {
                 socket.emit("nearby_drivers", []);
             }
         });
-
-        // 🙋 NUEVA SOLICITUD DE VIAJE POR EL CLIENTE
         socket.on("new_client_request", async (data: any) => {
             try {
                 const idRequest = data?.id_client_request || data?.id;
@@ -188,8 +170,6 @@ export const initializaSocket = (server: Httpserver) => {
                 });
             }
         });
-
-        // 💰 NUEVA OFERTA DEL CONDUCTOR AL CLIENTE
         socket.on("new_driver_offer", async (data: any) => {
             try {
                 if (!data?.id_client_request) {
@@ -223,7 +203,6 @@ export const initializaSocket = (server: Httpserver) => {
                         console.warn("⚠️ No se pudo consultar prisma.user para el conductor:", dbError);
                     }
                 }
-
                 const rawDriverImage = driverObj?.image || data?.driver_image || data?.image || "";
                 const finalDriverImageUrl = formatImageUrl(rawDriverImage);
                 const updatedDriver = {
@@ -250,8 +229,6 @@ export const initializaSocket = (server: Httpserver) => {
                 });
             }
         });
-
-        // 🚖 CONDUCTOR ASIGNADO A UN VIAJE
         socket.on("new_driver_assigned", (data: any) => {
             const idDriver = data?.id_driver;
             const clientRequest = {
@@ -262,8 +239,6 @@ export const initializaSocket = (server: Httpserver) => {
             console.log(`🚕 Nuevo conductor asignado (${idDriver}) para viaje:`, clientRequest);
             io.emit(`driver_assigned/${idDriver}`, clientRequest);
         });
-
-        // 📍 SEGUIMIENTO DEL VIAJE
         socket.on("trip_change_driver_position", (data: any) => {
             const idClient = data?.id_client;
             const driverPosition = {
@@ -273,8 +248,6 @@ export const initializaSocket = (server: Httpserver) => {
             };
             io.emit(`trip_new_driver_position/${idClient}`, driverPosition);
         });
-
-        // 🔄 ESTADO DEL VIAJE
         socket.on("update_status_trip", (data: any) => {
             const idClientRequest = data?.id_client_request;
             const clientRequest = {
@@ -284,8 +257,6 @@ export const initializaSocket = (server: Httpserver) => {
             };
             io.emit(`new_status_trip/${idClientRequest}`, clientRequest);
         });
-
-        // 🔴 DESCONEXIÓN DE CONDUCTOR
         socket.on("disconnect_driver", (data: any) => {
             if (data?.id) {
                 activeDriversMap.delete(Number(data.id));
@@ -295,7 +266,6 @@ export const initializaSocket = (server: Httpserver) => {
                 id_socket: socket.id 
             });
         });
-
         socket.on("disconnect", () => {
             console.log("🔴 Cliente desconectado:", socket.id);
             io.emit("driver_disconnected", { 
@@ -304,7 +274,6 @@ export const initializaSocket = (server: Httpserver) => {
         });
     });
 };
-
 export const getIO = (): Server => { 
     if (!io) {
         throw new AppError("Socket.io no ha sido inicializado", 500);
