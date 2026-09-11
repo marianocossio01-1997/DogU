@@ -330,22 +330,24 @@ export const getTimeAndDistance = async (
         });
     }
     if (!countryConfig || !countryConfig.is_active) {
-        countryConfig = await prisma.countryConfig.findFirst({
-            where: { country_code: 'US', is_active: true },
+        countryConfig = await prisma.countryConfig.findUnique({
+            where: { country_code: 'AR' },
             include: { pricing_configs: true }
         });
     }
     const pricing = countryConfig?.pricing_configs?.[0] || {
         base_fare_usd: 1.5,
-        km_value_usd: 1.2,
-        min_value_usd: 0.09
+        km_value_usd: 0.5,
+        min_value_usd: 0.1
     };
-    const exchangeRate = countryConfig?.exchange_rate ?? 1;
+    const exchangeRate = countryConfig?.exchange_rate ?? 1.0;
     const currencyCode = countryConfig?.currency_code ?? 'USD';
     const currencySymbol = countryConfig?.currency_symbol ?? '$';
     const resolvedCountryCode = countryConfig?.country_code ?? 'US';
+
     const totalUsd = pricing.base_fare_usd + (km * pricing.km_value_usd) + (minutes * pricing.min_value_usd);
     const recommendedValueLocal = Math.round(totalUsd * exchangeRate);
+
     return {
         distance: {
             text: element.distance.text,
