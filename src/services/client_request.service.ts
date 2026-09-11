@@ -208,7 +208,6 @@ export const getTimeAndDistance = async (
         console.error("🚨 GOOGLE_MAPS_API_KEY no está definida en las variables de entorno");
         throw new AppError("No se ha configurado GOOGLE_MAPS_API_KEY en el servidor", 500);
     }
-
     const url = "https://maps.googleapis.com/maps/api/distancematrix/json";
     let response;
     try {
@@ -224,7 +223,6 @@ export const getTimeAndDistance = async (
         console.error("🚨 Error al conectar con Google Maps API:", error?.message || error);
         throw new AppError("Error al conectarse al API de Google Distance", 500);
     } 
-
     const body = response.data;
     console.log("📡 Google API Status:", body.status);
     
@@ -232,7 +230,6 @@ export const getTimeAndDistance = async (
         console.error("🚨 Google API devolvió estatus no OK:", body.error_message || body.status);
         throw new AppError(`Respuesta no válida del API de Google: ${body.status}`, 500);
     }
-
     const element = body.rows?.[0]?.elements?.[0];
     if (!element || element.status !== "OK") {
         console.error("🚨 Elemento de ruta no válido en Google API:", element?.status);
@@ -258,7 +255,7 @@ export const getTimeAndDistance = async (
     }
     if (!countryConfig || !countryConfig.is_active) {
         countryConfig = await prisma.countryConfig.findFirst({
-            where: { country_code: 'AR', is_active: true },
+            where: { country_code: 'US', is_active: true },
             include: { pricing_configs: true }
         });
     }
@@ -267,10 +264,10 @@ export const getTimeAndDistance = async (
         km_value_usd: 1.2,
         min_value_usd: 0.09
     };
-    const exchangeRate = countryConfig?.exchange_rate ?? 1500;
-    const currencyCode = countryConfig?.currency_code ?? 'ARS';
+    const exchangeRate = countryConfig?.exchange_rate ?? 1;
+    const currencyCode = countryConfig?.currency_code ?? 'USD';
     const currencySymbol = countryConfig?.currency_symbol ?? '$';
-    const resolvedCountryCode = countryConfig?.country_code ?? 'AR';
+    const resolvedCountryCode = countryConfig?.country_code ?? 'US';
     const totalUsd = pricing.base_fare_usd + (km * pricing.km_value_usd) + (minutes * pricing.min_value_usd);
     const recommendedValueLocal = Math.round(totalUsd * exchangeRate);
     return {
@@ -291,6 +288,7 @@ export const getTimeAndDistance = async (
         destination_addresses: body.destination_addresses?.[0] ?? 'Destino',
     };
 };
+
 export const getNearbyClientRequests = async (driverLat: number, driverLng: number) => {
     try {
         const rawData = await prisma.$queryRaw<any[]>`
@@ -379,81 +377,7 @@ export const getNearbyClientRequests = async (driverLat: number, driverLng: numb
         console.error("💥 Error detallado en getNearbyClientRequests Service:", e);
         throw new AppError(`Error interno al obtener solicitudes cercanas: ${e.message || e}`, 500);
     }
-};
-export const getByClientRequest = async (id: number) => {
-    const rawData = await prisma.$queryRaw<any[]>`
-        SELECT
-            CR.id,
-            CR.id_client, 
-            CR.id_driver_assigned,
-            CR.fare_offered,
-            CR.fare_assigned,
-            CR.pickup_description,
-            CR.destination_description,
-            CR.status,
-            CR.updated_at,
-            JSON_OBJECT(
-                'x', ST_X(pickup_position),
-                'y', ST_Y(pickup_position)
-            ) AS pickup_position,
-            JSON_OBJECT(
-                'x', ST_X(destination_position),
-                'y', ST_Y(destination_position)
-            ) AS destination_position,
-            JSON_OBJECT(
-                'id', U.id,
-                'fullname', U.fullname,
-                'phone', U.phone,
-                'image', U.image
-            ) AS client,
-            JSON_OBJECT(
-                'id', D.id,
-                'fullname', D.fullname,
-                'phone', D.phone,
-                'image', D.image
-            ) AS driver,
-            JSON_OBJECT(
-                'brand', DCI.brand,
-                'color', DCI.color,
-                'plate', DCI.plate
-            ) AS car
-        FROM
-            client_requests AS CR  
-        INNER JOIN
-            users AS U  
-        ON
-            U.id = CR.id_client  
-        LEFT JOIN
-            users AS D  
-        ON
-            D.id = CR.id_driver_assigned
-        LEFT JOIN
-            driver_car_info AS DCI
-        ON
-            DCI.id_driver = CR.id_driver_assigned  
-        WHERE
-            CR.id = ${id} AND status IN ('ACCEPTED', 'ON_THE_WAY', 'ARRIVED', 'TRAVELING', 'FINISHED')    
-    `;
-    if (!rawData.length) return null;  
-    const item = rawData[0];
-    const clientObj = parseJsonIfNeeded(item.client) || {};
-    const driverObj = parseJsonIfNeeded(item.driver) || {};
-    const formatted = {
-        ...item,
-        pickup_position: parseJsonIfNeeded(item.pickup_position),
-        destination_position: parseJsonIfNeeded(item.destination_position),
-        car: parseJsonIfNeeded(item.car),
-        client: {
-            ...clientObj,
-            image: formatImageUrl(clientObj.image)
-        },
-        driver: {
-            ...driverObj,
-            image: formatImageUrl(driverObj.image)
-        },
-    };
-    return normalizeBigInt(formatted);
-};
+}
 export const getByClientAssigned = async (id_client: number) => {
     const rawData = await prisma.$queryRaw<any[]>`
         SELECT
