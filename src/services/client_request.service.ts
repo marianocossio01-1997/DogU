@@ -300,7 +300,6 @@ export const getTimeAndDistance = async (
         throw new AppError("Error al conectarse al API de Google Distance", 500);
     } 
     const body = response.data;
-    console.log("📡 Google API Status:", body.status);
     
     if (body.status !== 'OK') {
         console.error("🚨 Google API devolvió estatus no OK:", body.error_message || body.status);
@@ -315,13 +314,9 @@ export const getTimeAndDistance = async (
     const durationValue = element.duration.value; 
     const km = distanceValue / 1000;
     const minutes = durationValue / 60;
-
-    let targetCountryCode = countryCode?.trim().toUpperCase();
+    let targetCountryCode: string | null | undefined = countryCode?.trim().toUpperCase();
     if (!targetCountryCode) {
-        const detected = await getCountryCodeFromCoordinates(originLat, originLng, apikey);
-        if (detected) {
-            targetCountryCode = detected;
-        }
+        targetCountryCode = await getCountryCodeFromCoordinates(originLat, originLng, apikey);
     }
     let countryConfig = null;
     if (targetCountryCode) {
@@ -338,8 +333,8 @@ export const getTimeAndDistance = async (
     }
     const pricing = countryConfig?.pricing_configs?.[0] || {
         base_fare_usd: 1.5,
-        km_value_usd: 1.5,
-        min_value_usd: 0.1
+        km_value_usd: 1.2,
+        min_value_usd: 0.08
     };
     const exchangeRate = countryConfig?.exchange_rate ?? 1.0;
     const currencyCode = countryConfig?.currency_code ?? 'USD';
@@ -360,7 +355,7 @@ export const getTimeAndDistance = async (
         currency_code: currencyCode,       
         currency_symbol: currencySymbol,   
         exchange_rate: exchangeRate,
-        recommended_value: recommendedValueLocal, 
+        recommended_value: recommendedValueLocal,
         origin_addresses: body.origin_addresses?.[0] ?? 'Origen',
         destination_addresses: body.destination_addresses?.[0] ?? 'Destino',
     };
