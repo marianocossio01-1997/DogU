@@ -314,14 +314,10 @@ export const getTimeAndDistance = async (
     const durationValue = element.duration.value; 
     const km = distanceValue / 1000;
     const minutes = durationValue / 60;
-    
-    // 1. Obtener código de país (si no vino de Flutter, se detecta con Reverse Geocoding según la ubicación del origen)
     let targetCountryCode: string | null | undefined = countryCode?.trim().toUpperCase();
     if (!targetCountryCode) {
         targetCountryCode = await getCountryCodeFromCoordinates(originLat, originLng, apikey);
     }
-
-    // 2. Buscar la configuración del país detectado en la BD
     let countryConfig = null;
     if (targetCountryCode) {
         countryConfig = await prisma.countryConfig.findUnique({
@@ -329,15 +325,12 @@ export const getTimeAndDistance = async (
             include: { pricing_configs: true }
         });
     }
-
-    // 3. Si el país detectado no está en tu BD o está inactivo, tomar la primera configuración activa de tu tabla como respaldo
     if (!countryConfig || !countryConfig.is_active) {
         countryConfig = await prisma.countryConfig.findFirst({
             where: { is_active: true },
             include: { pricing_configs: true }
         });
     }
-
     const pricing = countryConfig?.pricing_configs?.[0] || {
         base_fare_usd: 1.5,
         km_value_usd: 1.2,
@@ -347,11 +340,8 @@ export const getTimeAndDistance = async (
     const currencyCode = countryConfig?.currency_code ?? 'USD';
     const currencySymbol = countryConfig?.currency_symbol ?? '$';
     const resolvedCountryCode = countryConfig?.country_code ?? 'US';
-    
-    // 4. Cálculo: tarifa base en USD convertida automáticamente al tipo de cambio local del país detectado
     const totalUsd = pricing.base_fare_usd + (km * pricing.km_value_usd) + (minutes * pricing.min_value_usd);
     const recommendedValueLocal = Math.round(totalUsd * exchangeRate);
-    
     return {
         distance: {
             text: element.distance.text,
