@@ -273,96 +273,97 @@ export const updateDriverRating = async (data: UpdateDriverRatingInput) => {
     return updatedClientRequest;
 };
 export const getTimeAndDistance = async (
-    originLat: number,
-    originLng: number,
-    destinationLat: number,
-    destinationLng: number,
-    countryCode?: string
+    originLat: number,
+    originLng: number,
+    destinationLat: number,
+    destinationLng: number,
+    countryCode?: string
 ) => {
-    const apikey = process.env.GOOGLE_MAPS_API_KEY;
-    if (!apikey) {
-        console.error("🚨 GOOGLE_MAPS_API_KEY no está definida en las variables de entorno");
-        throw new AppError("No se ha configurado GOOGLE_MAPS_API_KEY en el servidor", 500);
-    }
-    const url = "https://maps.googleapis.com/maps/api/distancematrix/json";
-    let response;
-    try {
-        response = await axios.get(url, {
-            params: {
-                origins: `${originLat},${originLng}`,
-                destinations: `${destinationLat},${destinationLng}`,
-                units: "metric",
-                key: apikey
-            }
-        });
-    } catch (error: any) {
-        console.error("🚨 Error al conectar con Google Maps API:", error?.message || error);
-        throw new AppError("Error al conectarse al API de Google Distance", 500);
-    } 
-    const body = response.data;
-    console.log("📡 Google API Status:", body.status);
-    
-    if (body.status !== 'OK') {
-        console.error("🚨 Google API devolvió estatus no OK:", body.error_message || body.status);
-        throw new AppError(`Respuesta no válida del API de Google: ${body.status}`, 500);
-    }
-    const element = body.rows?.[0]?.elements?.[0];
-    if (!element || element.status !== "OK") {
-        console.error("🚨 Elemento de ruta no válido en Google API:", element?.status);
-        throw new AppError(`No se puede calcular la distancia y duración para la ruta seleccionada`, 500);
-    }
-    const distanceValue = element.distance.value; 
-    const durationValue = element.duration.value; 
-    const km = distanceValue / 1000;
-    const minutes = durationValue / 60;
-    let targetCountryCode = countryCode?.trim().toUpperCase();
-    if (!targetCountryCode) {
-        const detected = await getCountryCodeFromCoordinates(originLat, originLng, apikey);
-        if (detected) {
-            targetCountryCode = detected;
-        }
-    }
-    let countryConfig = null;
-    if (targetCountryCode) {
-        countryConfig = await prisma.countryConfig.findUnique({
-            where: { country_code: targetCountryCode },
-            include: { pricing_configs: true }
-        });
-    }
-    if (!countryConfig || !countryConfig.is_active) {
-        countryConfig = await prisma.countryConfig.findFirst({
-            where: { country_code: 'US', is_active: true },
-            include: { pricing_configs: true }
-        });
-    }
-    const pricing = countryConfig?.pricing_configs?.[0] || {
-        base_fare_usd: 1.5,
-        km_value_usd: 1.2,
-        min_value_usd: 0.09
-    };
-    const exchangeRate = countryConfig?.exchange_rate ?? 1;
-    const currencyCode = countryConfig?.currency_code ?? 'USD';
-    const currencySymbol = countryConfig?.currency_symbol ?? '$';
-    const resolvedCountryCode = countryConfig?.country_code ?? 'US';
-    const totalUsd = pricing.base_fare_usd + (km * pricing.km_value_usd) + (minutes * pricing.min_value_usd);
-    const recommendedValueLocal = Math.round(totalUsd * exchangeRate);
-    return {
-        distance: {
-            text: element.distance.text,
-            value: distanceValue
-        },
-        duration: {
-            text: element.duration.text,
-            value: durationValue
-        },
-        country_code: resolvedCountryCode,
-        currency_code: currencyCode,       
-        currency_symbol: currencySymbol,   
-        exchange_rate: exchangeRate,
-        recommended_value: recommendedValueLocal,          
-        origin_addresses: body.origin_addresses?.[0] ?? 'Origen',
-        destination_addresses: body.destination_addresses?.[0] ?? 'Destino',
-    };
+    const apikey = process.env.GOOGLE_MAPS_API_KEY;
+    if (!apikey) {
+        console.error("🚨 GOOGLE_MAPS_API_KEY no está definida en las variables de entorno");
+        throw new AppError("No se ha configurado GOOGLE_MAPS_API_KEY en el servidor", 500);
+    }
+    const url = "https://maps.googleapis.com/maps/api/distancematrix/json";
+    let response;
+    try {
+        response = await axios.get(url, {
+            params: {
+                origins: `${originLat},${originLng}`,
+                destinations: `${destinationLat},${destinationLng}`,
+                units: "metric",
+                key: apikey
+            }
+        });
+    } catch (error: any) {
+        console.error("🚨 Error al conectar con Google Maps API:", error?.message || error);
+        throw new AppError("Error al conectarse al API de Google Distance", 500);
+    } 
+    const body = response.data;
+    console.log("📡 Google API Status:", body.status);
+    
+    if (body.status !== 'OK') {
+        console.error("🚨 Google API devolvió estatus no OK:", body.error_message || body.status);
+        throw new AppError(`Respuesta no válida del API de Google: ${body.status}`, 500);
+    }
+    const element = body.rows?.[0]?.elements?.[0];
+    if (!element || element.status !== "OK") {
+        console.error("🚨 Elemento de ruta no válido en Google API:", element?.status);
+        throw new AppError(`No se puede calcular la distancia y duración para la ruta seleccionada`, 500);
+    }
+    const distanceValue = element.distance.value; 
+    const durationValue = element.duration.value; 
+    const km = distanceValue / 1000;
+    const minutes = durationValue / 60;
+
+    let targetCountryCode = countryCode?.trim().toUpperCase();
+    if (!targetCountryCode) {
+        const detected = await getCountryCodeFromCoordinates(originLat, originLng, apikey);
+        if (detected) {
+            targetCountryCode = detected;
+        }
+    }
+    let countryConfig = null;
+    if (targetCountryCode) {
+        countryConfig = await prisma.countryConfig.findUnique({
+            where: { country_code: targetCountryCode },
+            include: { pricing_configs: true }
+        });
+    }
+    if (!countryConfig || !countryConfig.is_active) {
+        countryConfig = await prisma.countryConfig.findFirst({
+            where: { is_active: true },
+            include: { pricing_configs: true }
+        });
+    }
+    const pricing = countryConfig?.pricing_configs?.[0] || {
+        base_fare_usd: 1.5,
+        km_value_usd: 1.5,
+        min_value_usd: 0.1
+    };
+    const exchangeRate = countryConfig?.exchange_rate ?? 1.0;
+    const currencyCode = countryConfig?.currency_code ?? 'USD';
+    const currencySymbol = countryConfig?.currency_symbol ?? '$';
+    const resolvedCountryCode = countryConfig?.country_code ?? 'US';
+    const totalUsd = pricing.base_fare_usd + (km * pricing.km_value_usd) + (minutes * pricing.min_value_usd);
+    const recommendedValueLocal = Math.round(totalUsd * exchangeRate);
+    return {
+        distance: {
+            text: element.distance.text,
+            value: distanceValue
+        },
+        duration: {
+            text: element.duration.text,
+            value: durationValue
+        },
+        country_code: resolvedCountryCode,
+        currency_code: currencyCode,       
+        currency_symbol: currencySymbol,   
+        exchange_rate: exchangeRate,
+        recommended_value: recommendedValueLocal, 
+        origin_addresses: body.origin_addresses?.[0] ?? 'Origen',
+        destination_addresses: body.destination_addresses?.[0] ?? 'Destino',
+    };
 };
 export const getNearbyClientRequests = async (driverLat: number, driverLng: number) => {
     try {
