@@ -7,14 +7,12 @@ import type { ClientRequestStatus } from '../generated/prisma/enums.js';
 const normalizeBigInt = (obj: any) => JSON.parse(
     JSON.stringify(obj, (_, value) => typeof value === 'bigint' ? Number(value) : value)
 );
-
 const parseJsonIfNeeded = (val: any) => {
     if (typeof val === 'string') {
         try { return JSON.parse(val); } catch { return val; }
     }
     return val;
 };
-
 const formatImageUrl = (imagePath: string | null | undefined): string | null => {
     if (!imagePath || imagePath.trim() === '' || imagePath === 'null') return null;
     const cleanPath = imagePath.trim();
@@ -30,7 +28,6 @@ const formatImageUrl = (imagePath: string | null | undefined): string | null => 
     }
     return pathWithSlash;
 };
-
 const getCountryCodeFromCoordinates = async (lat: number, lng: number, apiKey: string): Promise<string | null> => {
     try {
         const url = `https://maps.googleapis.com/maps/api/geocode/json`;
@@ -40,7 +37,6 @@ const getCountryCodeFromCoordinates = async (lat: number, lng: number, apiKey: s
                 key: apiKey
             }
         });
-
         if (response.data?.status === 'OK' && response.data.results?.length > 0) {
             for (const result of response.data.results) {
                 const countryComponent = result.address_components?.find((c: any) =>
@@ -56,15 +52,11 @@ const getCountryCodeFromCoordinates = async (lat: number, lng: number, apiKey: s
     } catch (error: any) {
         console.warn("⚠️ No se pudo determinar el país mediante Reverse Geocoding API:", error?.message || error);
     }
-
-    // Fallback geográfico si la API de Geocoding falla o no está habilitada
     if (lat >= -55.0 && lat <= -21.0 && lng >= -73.0 && lng <= -53.0) {
         return 'AR';
     }
-
     return null;
 };
-
 export const createClientRequest = async (data: CreateClientRequestInput) => {
     try {
         const requestId = await prisma.$transaction(async (tx: any) => {
@@ -105,7 +97,6 @@ export const createClientRequest = async (data: CreateClientRequestInput) => {
         throw new AppError(`Error al crear la solicitud de viaje: ${e}`, 500);
     }
 };
-
 export const getByClientRequestCreated = async (id: number) => {
     const rawData = await prisma.$queryRaw<any[]>`
         SELECT
@@ -153,7 +144,6 @@ export const getByClientRequestCreated = async (id: number) => {
     };
     return normalizeBigInt(formatted);
 };
-
 export const getByClientRequest = async (id: number) => {
     const rawData = await prisma.$queryRaw<any[]>`
         SELECT
@@ -248,7 +238,6 @@ export const assignDriver = async (data: AssignDriverInput) => {
     });
     return updatedDriverAssigned;
 };
-
 export const updateStatus = async (data: UpdateClientRequestInput) => {
     const clientRequest = await prisma.clientRequests.findUnique({
         where: { id: data.id }
@@ -264,7 +253,6 @@ export const updateStatus = async (data: UpdateClientRequestInput) => {
     });
     return updatedClientRequest;
 };
-
 export const updateClientRating = async (data: UpdateClientRatingInput) => {
     const clientRequest = await prisma.clientRequests.findUnique({
         where: { id: data.id }
@@ -280,7 +268,6 @@ export const updateClientRating = async (data: UpdateClientRatingInput) => {
     });
     return updatedClientRequest;
 };
-
 export const updateDriverRating = async (data: UpdateDriverRatingInput) => {
     const clientRequest = await prisma.clientRequests.findUnique({
         where: { id: data.id }
@@ -296,7 +283,6 @@ export const updateDriverRating = async (data: UpdateDriverRatingInput) => {
     });
     return updatedClientRequest;
 };
-
 export const getTimeAndDistance = async (
     originLat: number,
     originLng: number,
@@ -339,39 +325,43 @@ export const getTimeAndDistance = async (
     const durationValue = element.duration.value; 
     const km = distanceValue / 1000;
     const minutes = durationValue / 60;
-
     let targetCountryCode: string | null | undefined = countryCode?.trim().toUpperCase();
     if (!targetCountryCode || targetCountryCode === 'NULL' || targetCountryCode === 'UNDEFINED') {
         targetCountryCode = await getCountryCodeFromCoordinates(originLat, originLng, apikey);
     }
-
-    let countryConfig = null;
+    console.log(`🔎 País solicitado / detectado: "${targetCountryCode}"`);
+    let rawCountry: any[] = [];
     if (targetCountryCode) {
-        countryConfig = await prisma.countryConfig.findUnique({
-            where: { country_code: targetCountryCode },
-            include: { pricing_configs: true }
-        });
+        rawCountry = await prisma.$queryRaw<any[]>`
+            SELECT CC.*, PC.base_fare_usd, PC.km_value_usd, PC.min_value_usd
+            FROM country_configs CC
+            LEFT JOIN pricing_configs PC ON CC.id = PC.country_id
+            WHERE CC.country_code = ${targetCountryCode} AND CC.is_active = 1
+            LIMIT 1
+        `;
     }
-    if (!countryConfig || !countryConfig.is_active) {
-        countryConfig = await prisma.countryConfig.findFirst({
-            where: { is_active: true },
-            include: { pricing_configs: true }
-        });
+    if (!rawCountry || rawCountry.length === 0) {
+        console.warn(`⚠️ No se encontró configuración SQL para "${targetCountryCode}". Buscando primer país activo...`);
+        rawCountry = await prisma.$queryRaw<any[]>`
+            SELECT CC.*, PC.base_fare_usd, PC.km_value_usd, PC.min_value_usd
+            FROM country_configs CC
+            LEFT JOIN pricing_configs PC ON CC.id = PC.country_id
+            WHERE CC.is_active = 1
+            LIMIT 1
+        `;
     }
-
-    const pricing = countryConfig?.pricing_configs?.[0] || {
-        base_fare_usd: 1.5,
-        km_value_usd: 0.5,
-        min_value_usd: 0.1
-    };
-    const exchangeRate = countryConfig?.exchange_rate ?? 1.0;
-    const currencyCode = countryConfig?.currency_code ?? 'USD';
-    const currencySymbol = countryConfig?.currency_symbol ?? '$';
-    const resolvedCountryCode = countryConfig?.country_code ?? 'US';
-
-    const totalUsd = pricing.base_fare_usd + (km * pricing.km_value_usd) + (minutes * pricing.min_value_usd);
+    const configData = rawCountry[0] || {};
+    console.log("📌 Datos recuperados directamente desde la BD:", configData);
+    const exchangeRate = Number(configData.exchange_rate ?? 1.0);
+    const currencyCode = configData.currency_code ?? 'USD';
+    const currencySymbol = configData.currency_symbol ?? '$';
+    const resolvedCountryCode = configData.country_code ?? 'US';
+    const baseFareUsd = Number(configData.base_fare_usd ?? 1.5);
+    const kmValueUsd = Number(configData.km_value_usd ?? 0.5);
+    const minValueUsd = Number(configData.min_value_usd ?? 0.1);
+    const totalUsd = baseFareUsd + (km * kmValueUsd) + (minutes * minValueUsd);
     const recommendedValueLocal = Math.round(totalUsd * exchangeRate);
-
+    console.log(`✅ RESULTADO FINAL: ${totalUsd.toFixed(2)} USD * ${exchangeRate} (Rate) = ${recommendedValueLocal} ${currencyCode}`);
     return {
         distance: {
             text: element.distance.text,
@@ -390,7 +380,6 @@ export const getTimeAndDistance = async (
         destination_addresses: body.destination_addresses?.[0] ?? 'Destino',
     };
 };
-
 export const getNearbyClientRequests = async (driverLat: number, driverLng: number) => {
     try {
         const rawData = await prisma.$queryRaw<any[]>`
@@ -479,7 +468,6 @@ export const getNearbyClientRequests = async (driverLat: number, driverLng: numb
         throw new AppError(`Error interno al obtener solicitudes cercanas: ${e.message || e}`, 500);
     }
 };
-
 export const getByClientAssigned = async (id_client: number) => {
     const rawData = await prisma.$queryRaw<any[]>`
         SELECT
@@ -557,7 +545,6 @@ export const getByClientAssigned = async (id_client: number) => {
     });
     return normalizeBigInt(formatted);
 };
-
 export const getByDriverAssigned = async (id_driver_assigned: number) => {
     const rawData = await prisma.$queryRaw<any[]>`
         SELECT
