@@ -6,7 +6,7 @@ export class CountryConfigService {
     const country = await prisma.countryConfig.findUnique({
       where: { country_code: countryCode.toUpperCase() },
       include: { pricing_configs: true },
-    })
+    });
     if (!country || !country.is_active) {
       throw new Error(`El país '${countryCode}' no existe o no está activo`);
     }
