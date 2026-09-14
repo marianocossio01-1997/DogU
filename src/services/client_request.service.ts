@@ -1,7 +1,13 @@
 import prisma from '../database/prismaClient.js';
 import { AppError } from '../utils/AppError.js';
 import axios from 'axios';
-import type { AssignDriverInput, CreateClientRequestInput, UpdateClientRatingInput, UpdateClientRequestInput, UpdateDriverRatingInput } from '../validators/client_request.validator.js';
+import type { 
+    AssignDriverInput, 
+    CreateClientRequestInput, 
+    UpdateClientRatingInput, 
+    UpdateClientRequestInput, 
+    UpdateDriverRatingInput 
+} from '../validators/client_request.validator.js';
 import type { ClientRequestStatus } from '../generated/prisma/enums.js';
 
 const normalizeBigInt = (obj: any) => JSON.parse(
@@ -284,6 +290,7 @@ export const getTimeAndDistance = async (
         console.error("🚨 GOOGLE_MAPS_API_KEY no está definida en las variables de entorno");
         throw new AppError("No se ha configurado GOOGLE_MAPS_API_KEY en el servidor", 500);
     }
+
     const url = "https://maps.googleapis.com/maps/api/distancematrix/json";
     let response;
     try {
@@ -295,12 +302,15 @@ export const getTimeAndDistance = async (
                 key: apikey
             }
         });
-    } catch (error: any) {
-        console.error("🚨 Error al conectar con Google Maps API:", error?.message || error);
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error("🚨 Error al conectar con Google Maps API:", message);
         throw new AppError("Error al conectarse al API de Google Distance", 500);
     } 
+
     const body = response.data;
     console.log("📡 Google API Status:", body.status);
+    
     if (body.status !== 'OK') {
         console.error("🚨 Google API devolvió estatus no OK:", body.error_message || body.status);
         throw new AppError(`Respuesta no válida del API de Google: ${body.status}`, 500);
@@ -329,13 +339,12 @@ export const getTimeAndDistance = async (
         });
     }
     if (!countryConfig || !countryConfig.is_active) {
-        console.warn(`⚠️ Configuración para el país '${targetCountryCode}' no encontrada. Buscando país por defecto...`);
+        console.warn(`⚠️ Configuración para el país '${targetCountryCode}' no encontrada. Buscando país activo por defecto...`);
         countryConfig = await prisma.countryConfig.findFirst({
             where: { is_active: true },
             include: { pricing_configs: true }
         });
     }
-
     if (!countryConfig) {
         throw new AppError("No hay configuraciones de países activas en la base de datos", 500);
     }
@@ -452,11 +461,12 @@ export const getNearbyClientRequests = async (driverLat: number, driverLng: numb
         });
         return normalizeBigInt(formatted);
 
-    } catch (e: any) {
+    } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : String(e);
         console.error("💥 Error detallado en getNearbyClientRequests Service:", e);
-        throw new AppError(`Error interno al obtener solicitudes cercanas: ${e.message || e}`, 500);
+        throw new AppError(`Error interno al obtener solicitudes cercanas: ${message}`, 500);
     }
-}
+};
 export const getByClientAssigned = async (id_client: number) => {
     const rawData = await prisma.$queryRaw<any[]>`
         SELECT
