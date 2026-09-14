@@ -301,7 +301,6 @@ export const getTimeAndDistance = async (
     } 
     const body = response.data;
     console.log("📡 Google API Status:", body.status);
-    
     if (body.status !== 'OK') {
         console.error("🚨 Google API devolvió estatus no OK:", body.error_message || body.status);
         throw new AppError(`Respuesta no válida del API de Google: ${body.status}`, 500);
@@ -315,7 +314,6 @@ export const getTimeAndDistance = async (
     const durationValue = element.duration.value; 
     const km = distanceValue / 1000;
     const minutes = durationValue / 60;
-
     let targetCountryCode = countryCode?.trim().toUpperCase();
     if (!targetCountryCode) {
         const detected = await getCountryCodeFromCoordinates(originLat, originLng, apikey);
@@ -331,25 +329,28 @@ export const getTimeAndDistance = async (
         });
     }
     if (!countryConfig || !countryConfig.is_active) {
+        console.warn(`⚠️ Configuración para el país '${targetCountryCode}' no encontrada. Buscando país por defecto...`);
         countryConfig = await prisma.countryConfig.findFirst({
-            where: { country_code: 'US', is_active: true },
+            where: { is_active: true },
             include: { pricing_configs: true }
         });
     }
-    const pricing = countryConfig?.pricing_configs?.[0] || {
-        base_fare_usd: 1,
-        km_value_usd: 1.2,
-        min_value_usd: 0.09
+
+    if (!countryConfig) {
+        throw new AppError("No hay configuraciones de países activas en la base de datos", 500);
+    }
+    const pricing = countryConfig.pricing_configs?.[0] || {
+        base_fare_usd: 1.5,
+        km_value_usd: 0.5,
+        min_value_usd: 0.1
     };
-    const exchangeRate = countryConfig?.exchange_rate ?? 1;
-    const currencyCode = countryConfig?.currency_code ?? 'USD';
-    const currencySymbol = countryConfig?.currency_symbol ?? '$';
-    const resolvedCountryCode = countryConfig?.country_code ?? 'US';
+    const exchangeRate = countryConfig.exchange_rate ?? 1.0;
+    const currencyCode = countryConfig.currency_code ?? 'USD';
+    const currencySymbol = countryConfig.currency_symbol ?? '$';
+    const resolvedCountryCode = countryConfig.country_code;
     const totalUsd = pricing.base_fare_usd + (km * pricing.km_value_usd) + (minutes * pricing.min_value_usd);
     const recommendedValueLocal = Math.round(totalUsd * exchangeRate);
-
-    console.log(`📍 País detectado por GPS: ${targetCountryCode} | Aplicado: ${resolvedCountryCode} | Tasa: ${exchangeRate} ${currencyCode} | Precio final: ${currencySymbol}${recommendedValueLocal}`);
-
+    console.log(`📍 GPS Lat/Lng: ${originLat},${originLng} | País Detectado: ${targetCountryCode} -> Aplicado: ${resolvedCountryCode} | Moneda: ${currencyCode} (${currencySymbol}) | Tasa: ${exchangeRate} | Precio Final Local: ${currencySymbol}${recommendedValueLocal}`);
     return {
         distance: {
             text: element.distance.text,
@@ -610,6 +611,8 @@ export const getByDriverAssigned = async (id_driver_assigned: number) => {
     });
     return normalizeBigInt(formatted);
 };
+
+
 
 
 
