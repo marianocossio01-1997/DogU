@@ -88,38 +88,7 @@ export const getByClientRequest = async (req: Request, res: Response, next: Next
     } catch (error) {
         next(error);
     }           
-};
-export const getTimeAndDistance = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const originLat = Number(req.query.originLat ?? req.query.origin_lat);
-        const originLng = Number(req.query.originLng ?? req.query.origin_lng);
-        const destinationLat = Number(req.query.destinationLat ?? req.query.destination_lat);
-        const destinationLng = Number(req.query.destinationLng ?? req.query.destination_lng);
-        const countryCode = (req.query.countryCode ?? req.query.country_code) as string | undefined;
-        console.log(`📥 Request recibido en backend -> Origen: (${originLat}, ${originLng}) | Destino: (${destinationLat}, ${destinationLng}) | CountryCode: ${countryCode}`);
-        if (isNaN(originLat) || isNaN(originLng) || isNaN(destinationLat) || isNaN(destinationLng)) {
-            return res.status(400).json({ 
-                message: "Las coordenadas de origen y destino son requeridas y deben ser números válidos" 
-            });
-        }
-        const data = await clientRequestService.getTimeAndDistance(
-            originLat,
-            originLng,
-            destinationLat,
-            destinationLng,
-            countryCode
-        );
-        return res.status(200).json(data);
-    } catch (error) {
-        next(error);
-    }           
-};
-
-
-
-
-
-/* export const getTimeAndDistance = async (req: Request, res: Response, next: NextFunction) => {
+}; export const getTimeAndDistance = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const originLat = Number(req.params.origin_lat ?? req.query.originLat);
         const originLng = Number(req.params.origin_lng ?? req.query.originLng);
@@ -142,4 +111,3 @@ export const getTimeAndDistance = async (req: Request, res: Response, next: Next
         next(error);
     }           
 };
- */
