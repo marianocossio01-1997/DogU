@@ -288,7 +288,6 @@ export const updateDriverRating = async (data: UpdateDriverRatingInput) => {
     });
     return updatedClientRequest;
 };
-
 export const getTimeAndDistance = async (
     originLat: number,
     originLng: number,
@@ -301,6 +300,7 @@ export const getTimeAndDistance = async (
         console.error("🚨 GOOGLE_MAPS_API_KEY no está definida en las variables de entorno");
         throw new AppError("No se ha configurado GOOGLE_MAPS_API_KEY en el servidor", 500);
     }
+
     const url = "https://maps.googleapis.com/maps/api/distancematrix/json";
     let response;
     try {
@@ -312,9 +312,8 @@ export const getTimeAndDistance = async (
                 key: apikey
             }
         });
-    } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : String(error);
-        console.error("🚨 Error al conectar con Google Maps API:", message);
+    } catch (error: any) {
+        console.error("🚨 Error al conectar con Google Maps API:", error?.message || error);
         throw new AppError("Error al conectarse al API de Google Distance", 500);
     } 
 
@@ -325,6 +324,7 @@ export const getTimeAndDistance = async (
         console.error("🚨 Google API devolvió estatus no OK:", body.error_message || body.status);
         throw new AppError(`Respuesta no válida del API de Google: ${body.status}`, 500);
     }
+
     const element = body.rows?.[0]?.elements?.[0];
     if (!element || element.status !== "OK") {
         console.error("🚨 Elemento de ruta no válido en Google API:", element?.status);
@@ -334,7 +334,6 @@ export const getTimeAndDistance = async (
     const durationValue = element.duration.value; 
     const km = distanceValue / 1000;
     const minutes = durationValue / 60;
-
     let targetCountryCode = countryCode?.trim().toUpperCase();
     if (!targetCountryCode) {
         const detected = await getCountryCodeFromCoordinates(originLat, originLng, apikey);
@@ -342,7 +341,6 @@ export const getTimeAndDistance = async (
             targetCountryCode = detected;
         }
     }
-
     let countryConfig = null;
     if (targetCountryCode) {
         countryConfig = await prisma.countryConfig.findUnique({
@@ -350,35 +348,23 @@ export const getTimeAndDistance = async (
             include: { pricing_configs: true }
         });
     }
-
     if (!countryConfig || !countryConfig.is_active) {
-        console.warn(`⚠️ Configuración para '${targetCountryCode}' no encontrada/activa. Buscando país por defecto activo...`);
         countryConfig = await prisma.countryConfig.findFirst({
-            where: { is_active: true },
+            where: { country_code: 'AR', is_active: true },
             include: { pricing_configs: true }
         });
     }
-
-    if (!countryConfig) {
-        throw new AppError("No hay configuraciones de países activas en la base de datos", 500);
-    }
-
-    const pricing = countryConfig.pricing_configs?.[0] || {
+    const pricing = countryConfig?.pricing_configs?.[0] || {
         base_fare_usd: 1.5,
-        km_value_usd: 0.5,
-        min_value_usd: 0.1
+        km_value_usd: 1.2,
+        min_value_usd: 0.09
     };
-
-    const exchangeRate = countryConfig.exchange_rate ?? 1.0;
-    const currencyCode = countryConfig.currency_code ?? 'ARS';
-    const currencySymbol = countryConfig.currency_symbol ?? '$';
-    const resolvedCountryCode = countryConfig.country_code;
-
+    const exchangeRate = countryConfig?.exchange_rate ?? 1500;
+    const currencyCode = countryConfig?.currency_code ?? 'ARS';
+    const currencySymbol = countryConfig?.currency_symbol ?? '$';
+    const resolvedCountryCode = countryConfig?.country_code ?? 'AR';
     const totalUsd = pricing.base_fare_usd + (km * pricing.km_value_usd) + (minutes * pricing.min_value_usd);
     const recommendedValueLocal = Math.round(totalUsd * exchangeRate);
-
-    console.log(`📍 GPS Lat/Lng: ${originLat},${originLng} | País Aplicado: ${resolvedCountryCode} | Moneda: ${currencyCode} (${currencySymbol}) | Tasa: ${exchangeRate} | Precio Final Local: ${currencySymbol}${recommendedValueLocal}`);
-
     return {
         distance: {
             text: element.distance.text,
@@ -397,7 +383,6 @@ export const getTimeAndDistance = async (
         destination_addresses: body.destination_addresses?.[0] ?? 'Destino',
     };
 };
-
 export const getNearbyClientRequests = async (driverLat: number, driverLng: number) => {
     try {
         const rawData = await prisma.$queryRaw<any[]>`
