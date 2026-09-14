@@ -337,7 +337,7 @@ export const getTimeAndDistance = async (
         });
     }
     const pricing = countryConfig?.pricing_configs?.[0] || {
-        base_fare_usd: 1.5,
+        base_fare_usd: 1,
         km_value_usd: 1.2,
         min_value_usd: 0.09
     };

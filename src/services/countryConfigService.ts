@@ -19,14 +19,14 @@ export class CountryConfigService {
       currency_symbol: country.currency_symbol,
       exchange_rate: rate,
       pricing_usd: {
-        base_fare: pricing?.base_fare_usd ?? 1.5,
-        km_value: pricing?.km_value_usd ?? 0.5,
-        min_value: pricing?.min_value_usd ?? 0.1,
+        base_fare: pricing?.base_fare_usd ?? 1,
+        km_value: pricing?.km_value_usd ?? 1.2,
+        min_value: pricing?.min_value_usd ?? 0.09,
       },
       pricing_local: {
-        base_fare: (pricing?.base_fare_usd ?? 1.5) * rate,
-        km_value: (pricing?.km_value_usd ?? 0.5) * rate,
-        min_value: (pricing?.min_value_usd ?? 0.1) * rate,
+        base_fare: (pricing?.base_fare_usd ?? 1) * rate,
+        km_value: (pricing?.km_value_usd ?? 1.2) * rate,
+        min_value: (pricing?.min_value_usd ?? 0.09) * rate,
       },
     };
   }
