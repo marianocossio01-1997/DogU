@@ -376,9 +376,9 @@ export const getTimeAndDistance = async (
     }
 
     const pricing = countryConfig?.pricing_configs?.[0] || {
-        base_fare_usd: 1.5,
-        km_value_usd: 0.5,
-        min_value_usd: 0.1
+        base_fare_usd: 1,
+        km_value_usd: 1.1,
+        min_value_usd: 0.09
     };
 
     const exchangeRate = countryConfig?.exchange_rate ?? 1550.0;

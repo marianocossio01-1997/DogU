@@ -20,12 +20,12 @@ export class CountryConfigService {
       exchange_rate: rate,
       pricing_usd: {
         base_fare: pricing?.base_fare_usd ?? 1,
-        km_value: pricing?.km_value_usd ?? 1.2,
+        km_value: pricing?.km_value_usd ?? 1,
         min_value: pricing?.min_value_usd ?? 0.09,
       },
       pricing_local: {
         base_fare: (pricing?.base_fare_usd ?? 1) * rate,
-        km_value: (pricing?.km_value_usd ?? 1.2) * rate,
+        km_value: (pricing?.km_value_usd ?? 1) * rate,
         min_value: (pricing?.min_value_usd ?? 0.09) * rate,
       },
     };
