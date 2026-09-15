@@ -37,29 +37,37 @@ const formatImageUrl = (imagePath: string | null | undefined): string | null => 
     return pathWithSlash;
 };
 
-// 📍 Detecta el código ISO de país según las coordenadas GPS enviadas
 const getCountryCodeFromCoordinates = async (lat: number, lng: number, apiKey: string): Promise<string | null> => {
     try {
-        const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`;
+        if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
+            console.error("🚨 Coordenadas inválidas recibidas en Reverse Geocoding:", { lat, lng });
+            return null;
+        }
+
+        const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}&language=en`;
         const response = await axios.get(url);
         
-        console.log("🔍 Reverse Geocoding Status:", response.data?.status);
+        console.log("🔍 Status de Google Reverse Geocoding:", response.data?.status);
 
         if (response.data?.status === 'OK' && response.data.results?.length > 0) {
             for (const result of response.data.results) {
-                const countryComponent = result.address_components?.find((c: any) =>
-                    c.types.includes('country')
+                if (!result.address_components) continue;
+                
+                const countryComponent = result.address_components.find((c: any) =>
+                    c.types && c.types.includes('country')
                 );
+
                 if (countryComponent?.short_name) {
-                    console.log("📍 País detectado exitosamente por GPS:", countryComponent.short_name);
-                    return countryComponent.short_name.toUpperCase();
+                    const countryCode = countryComponent.short_name.toUpperCase();
+                    console.log(`📍 País detectado con éxito por coordenadas (${lat}, ${lng}):`, countryCode);
+                    return countryCode;
                 }
             }
         } else {
-            console.error("🚨 Error devuelto por Google Geocoding API:", response.data?.error_message || response.data?.status);
+            console.error("🚨 Google Reverse Geocoding falló con status:", response.data?.status, "| Detalle:", response.data?.error_message || 'Sin mensaje de error');
         }
-    } catch (error) {
-        console.warn("⚠️ Falló la petición a Google Reverse Geocoding:", error);
+    } catch (error: any) {
+        console.error("⚠️ Error llamando a la API de Reverse Geocoding:", error?.message || error);
     }
     return null;
 };
@@ -296,7 +304,6 @@ export const updateDriverRating = async (data: UpdateDriverRatingInput) => {
     return updatedClientRequest;
 };
 
-// 💳 Cálculo de precio y asignación de moneda según país detectado por GPS o query param
 export const getTimeAndDistance = async (
     originLat: number,
     originLng: number,
@@ -344,10 +351,7 @@ export const getTimeAndDistance = async (
     const km = distanceValue / 1000;
     const minutes = durationValue / 60;
 
-    // 1. Evalúa si se recibió un countryCode por parámetros de URL
     let targetCountryCode = countryCode?.trim().toUpperCase();
-
-    // 2. Si no viene en la petición, lo consulta dinámicamente con Google Reverse Geocoding
     if (!targetCountryCode) {
         const detected = await getCountryCodeFromCoordinates(originLat, originLng, apikey);
         if (detected) {
@@ -363,9 +367,8 @@ export const getTimeAndDistance = async (
         });
     }
 
-    // 3. Fallback de seguridad si el país obtenido no existe en la BD o está inactivo
     if (!countryConfig || !countryConfig.is_active) {
-        console.warn(`⚠️ No se encontró configuración activa para el país '${targetCountryCode}'. Aplicando fallback por defecto 'AR'.`);
+        console.warn(`⚠️ No se encontró configuración activa para '${targetCountryCode}'. Aplicando fallback por defecto 'AR'.`);
         countryConfig = await prisma.countryConfig.findFirst({
             where: { country_code: 'AR', is_active: true },
             include: { pricing_configs: true }
