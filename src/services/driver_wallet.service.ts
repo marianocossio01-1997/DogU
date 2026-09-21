@@ -13,7 +13,6 @@ export const getOrCreateWallet = async (id_driver: number) => {
                 }
             }
         });
-
         if (!wallet) {
             wallet = await prisma.driverWallet.create({
                 data: {
@@ -63,12 +62,10 @@ export const processTripPayment = async (data: {
         const platformFee = total_fare * commissionRate; 
         const driverEarnings = total_fare * (1 - commissionRate); 
         await getOrCreateWallet(id_driver);
-
         return await prisma.$transaction(async (tx) => {
             let amountTransaction = 0;
             let type: TransactionType;
             let description = '';
-
             if (payment_method === PaymentMethod.CASH) {
                 amountTransaction = -platformFee;
                 type = TransactionType.TRIP_COMMISSION_DEBIT;

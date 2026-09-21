@@ -4,12 +4,10 @@
 generator client {
   provider = "prisma-client-js"
 }
-
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
-
 model User {
   id                        Int                @id @default(autoincrement())
   fullname                  String
@@ -27,6 +25,7 @@ model User {
   driverTripOffers          DriverTripOffer[]  @relation("DriverTripOffers")
   driverCarInfo             DriverCarInfo?
   driverWallet              DriverWallet?
+  cards                     UserCard[]
   sent_messages             ChatMessage[]      @relation("sent_messages")
   received_messages         ChatMessage[]      @relation("received_messages")
 
@@ -194,6 +193,22 @@ model WalletTransaction {
   client_request    ClientRequests? @relation(fields: [id_client_request], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@map("wallet_transactions")
+}
+model UserCard {
+  id               Int      @id @default(autoincrement())
+  id_user          Int
+  card_holder_name String   @db.VarChar(100)
+  last_4           String   @db.VarChar(4)   
+  brand            String   @db.VarChar(30) 
+  expiration_month Int
+  expiration_year  Int
+  card_token       String   @db.VarChar(255)
+  is_default       Boolean  @default(false) 
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+  user             User     @relation(fields: [id_user], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@map("user_cards")
 }
 model ChatMessage {
   id                Int            @id @default(autoincrement())
