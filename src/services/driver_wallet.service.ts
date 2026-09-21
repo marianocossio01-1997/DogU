@@ -24,7 +24,6 @@ export const getOrCreateWallet = async (id_driver: number) => {
                 }
             });
         }
-
         return wallet;
     } catch (e) {
         throw new AppError(`Error al obtener o crear la billetera del conductor: ${e}`, 500);
@@ -63,9 +62,27 @@ export const processTripPayment = async (data: {
         const driverEarnings = total_fare * (1 - commissionRate); 
         await getOrCreateWallet(id_driver);
         return await prisma.$transaction(async (tx) => {
+            const existingTx = await tx.walletTransaction.findFirst({
+                where: { id_client_request }
+            });
+            if (existingTx) {
+                console.log(`El viaje #${id_client_request} ya fue procesado previamente en la billetera.`);
+                
+                const currentWallet = await tx.driverWallet.findUnique({
+                    where: { id_driver }
+                });
+
+                return {
+                    wallet: currentWallet,
+                    transaction: existingTx,
+                    platform_fee: platformFee,
+                    driver_earnings: driverEarnings
+                };
+            }
             let amountTransaction = 0;
             let type: TransactionType;
             let description = '';
+
             if (payment_method === PaymentMethod.CASH) {
                 amountTransaction = -platformFee;
                 type = TransactionType.TRIP_COMMISSION_DEBIT;
