@@ -1,6 +1,7 @@
 import prisma from '../database/prismaClient.js';
 import { AppError } from '../utils/AppError.js';
 import axios from 'axios';
+import * as DriverWalletService from './driver_wallet.service.js';
 import type { 
     AssignDriverInput, 
     CreateClientRequestInput, 
@@ -40,7 +41,6 @@ const getCountryCodeFromCoordinates = async (lat: number, lng: number, apiKey: s
             console.error("🚨 Coordenadas inválidas recibidas en Reverse Geocoding:", { lat, lng });
             return null;
         }
-
         const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}&language=en`;
         const response = await axios.get(url);
         
@@ -68,7 +68,6 @@ const getCountryCodeFromCoordinates = async (lat: number, lng: number, apiKey: s
     }
     return null;
 };
-
 export const createClientRequest = async (data: CreateClientRequestInput) => {
     try {
         const requestId = await prisma.$transaction(async (tx: any) => {
@@ -115,6 +114,11 @@ export const getByClientRequestCreated = async (id: number) => {
             CR.id,
             CR.id_client, 
             CR.fare_offered,
+            CR.fare_assigned,
+            CR.platform_fee,
+            CR.driver_earnings,
+            CR.payment_method,
+            CR.payment_status,
             CR.pickup_description,
             CR.destination_description,
             CR.status,
@@ -164,6 +168,10 @@ export const getByClientRequest = async (id: number) => {
             CR.id_driver_assigned,
             CR.fare_offered,
             CR.fare_assigned,
+            CR.platform_fee,
+            CR.driver_earnings,
+            CR.payment_method,
+            CR.payment_status,
             CR.pickup_description,
             CR.destination_description,
             CR.status,
@@ -256,12 +264,22 @@ export const updateStatus = async (data: UpdateClientRequestInput) => {
     if (!clientRequest) {
         throw new AppError(`La solicitud de viaje no existe`, 404);
     }
+    const newStatus = data.status as ClientRequestStatus;
     const updatedClientRequest = await prisma.clientRequests.update({
         where: { id: data.id },
         data: {
-            status: data.status as ClientRequestStatus,
+            status: newStatus,
         }
     });
+    if (newStatus === 'FINISHED' && updatedClientRequest.id_driver_assigned) {
+        const totalFare = updatedClientRequest.fare_assigned ?? updatedClientRequest.fare_offered;
+        await DriverWalletService.processTripPayment({
+            id_client_request: updatedClientRequest.id,
+            id_driver: updatedClientRequest.id_driver_assigned,
+            total_fare: totalFare,
+            payment_method: updatedClientRequest.payment_method
+        });
+    }
     return updatedClientRequest;
 };
 export const updateClientRating = async (data: UpdateClientRatingInput) => {
@@ -393,6 +411,11 @@ export const getNearbyClientRequests = async (driverLat: number, driverLng: numb
                 CR.id,
                 CR.id_client, 
                 CR.fare_offered,
+                CR.fare_assigned,
+                CR.platform_fee,
+                CR.driver_earnings,
+                CR.payment_method,
+                CR.payment_status,
                 CR.pickup_description,
                 CR.destination_description,
                 CR.status,
@@ -483,6 +506,10 @@ export const getByClientAssigned = async (id_client: number) => {
             CR.id_driver_assigned,
             CR.fare_offered,
             CR.fare_assigned,
+            CR.platform_fee,
+            CR.driver_earnings,
+            CR.payment_method,
+            CR.payment_status,
             CR.pickup_description,
             CR.destination_description,
             CR.status,
@@ -560,6 +587,10 @@ export const getByDriverAssigned = async (id_driver_assigned: number) => {
             CR.id_driver_assigned,
             CR.fare_offered,
             CR.fare_assigned,
+            CR.platform_fee,
+            CR.driver_earnings,
+            CR.payment_method,
+            CR.payment_status,
             CR.pickup_description,
             CR.destination_description,
             CR.status,

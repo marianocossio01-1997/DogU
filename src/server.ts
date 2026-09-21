@@ -14,6 +14,7 @@ import driverTripOfferRouter from "./routes/driver_trip_offer.routes.js";
 import driverCarInfoRautes from "./routes/driver_car_info.routes.js";
 import chatMessageRouter from "./routes/chat_message.routes.js";
 import countryConfigRouter from "./routes/countryConfigRoutes.js"; 
+import driverWalletRouter from "./routes/driver_wallet.routes.js";
 import { initializaSocket } from './sockets/socketHandler.js';
 
 dotenv.config();
@@ -42,6 +43,7 @@ app.use("/driver-trip-offers", driverTripOfferRouter);
 app.use("/driver-car-info", driverCarInfoRautes);
 app.use("/chat", chatMessageRouter); 
 app.use("/country-config", countryConfigRouter); 
+app.use("/driver-wallet", driverWalletRouter);
 
 app.get("/", (req, res) => {
   res.json({ message: "BIENVENIDOS A TODOS" });
