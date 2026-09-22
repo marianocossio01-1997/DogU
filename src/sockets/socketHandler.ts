@@ -214,7 +214,27 @@ export const initializaSocket = (server: Httpserver) => {
                 console.error("🚨 Error al procesar 'resend_client_request':", error);
             }
         });
-
+        socket.on("cancel_client_request", async (data: any) => {
+            try {
+                const idClientRequest = Number(data?.id_client_request || data?.idClientRequest || data?.id);
+                if (!idClientRequest) return;
+                console.log(`❌ Cancelando solicitud de viaje #${idClientRequest}...`);
+                try {
+                    await prisma.clientRequests.update({
+                        where: { id: idClientRequest },
+                        data: { status: "CANCELLED" }
+                    });
+                } catch (dbError) {
+                    console.warn("⚠️ No se pudo actualizar el status a CANCELLED en BD:", dbError);
+                }
+                io.emit("client_request_cancelled", {
+                    id_client_request: idClientRequest,
+                    id: idClientRequest
+                });
+            } catch (error) {
+                console.error("🚨 Error al procesar 'cancel_client_request':", error);
+            }
+        });
         socket.on("new_driver_offer", async (data: any) => {
             try {
                 if (!data?.id_client_request) {
@@ -271,7 +291,7 @@ export const initializaSocket = (server: Httpserver) => {
                     ...data
                 });
             }
-        })
+        });
         socket.on("new_driver_assigned", (data: any) => {
             const idDriver = data?.id_driver;
             const clientRequest = {
@@ -338,6 +358,8 @@ export const getIO = (): Server => {
     }
     return io;
 };
+
+
 
 
 
