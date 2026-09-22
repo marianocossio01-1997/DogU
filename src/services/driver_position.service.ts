@@ -29,7 +29,7 @@ export const getDriverPosition = async (id_driver: number) => {
         WHERE
             id_driver = ${id_driver}
     `;
-    
+
     if (!result || result.length === 0) {
         throw new AppError("Conductor no encontrado", 404);
     }

@@ -28,7 +28,6 @@ model User {
   cards                     UserCard[]
   sent_messages             ChatMessage[]      @relation("sent_messages")
   received_messages         ChatMessage[]      @relation("received_messages")
-
   @@map("users")
 }
 model Role {
@@ -39,7 +38,6 @@ model Role {
   create_at DateTime      @default(now())
   update_at DateTime      @updatedAt
   users     UserHasRole[]
-
   @@map("roles")
 }
 model UserHasRole {
@@ -47,7 +45,6 @@ model UserHasRole {
   id_rol  String
   user    User   @relation(fields: [id_user], references: [id], onDelete: Cascade, onUpdate: Cascade)
   role    Role   @relation(fields: [id_rol], references: [id], onDelete: Cascade, onUpdate: Cascade)
-
   @@id([id_user, id_rol])
   @@map("users_has_roles")
 }
@@ -55,14 +52,12 @@ model DriverPosition {
   id_driver Int                   @id
   user      User                  @relation(fields: [id_driver], references: [id], onDelete: Cascade, onUpdate: Cascade)
   position  Unsupported("POINT")
-
   @@map("drivers_position")
 }
 model TimeAndDistanceValues {
   id        Int   @id
   km_value  Float
   min_value Float
-
   @@map("time_and_distance_values")
 }
 model CountryConfig {
@@ -76,7 +71,6 @@ model CountryConfig {
   created_at      DateTime        @default(now())
   updated_at      DateTime        @updatedAt
   pricing_configs PricingConfig[]
-
   @@map("country_configs")
 }
 model PricingConfig {
@@ -90,7 +84,6 @@ model PricingConfig {
   country              CountryConfig @relation(fields: [id_country], references: [id], onDelete: Cascade, onUpdate: Cascade)
   created_at           DateTime      @default(now())
   updated_at           DateTime      @updatedAt
-
   @@map("pricing_configs")
 }
 enum PaymentMethod {
@@ -128,7 +121,6 @@ model ClientRequests {
   driverTripOffers        DriverTripOffer[]
   chat_messages           ChatMessage[]
   wallet_transactions     WalletTransaction[]
-
   @@map("client_requests")
 }
 enum ClientRequestStatus {
@@ -151,7 +143,6 @@ model DriverTripOffer {
   updated_at        DateTime       @updatedAt
   driver            User           @relation("DriverTripOffers", fields: [id_driver], references: [id], onDelete: Cascade, onUpdate: Cascade)
   clientRequest     ClientRequests @relation(fields: [id_client_request], references: [id], onDelete: Cascade, onUpdate: Cascade)
-
   @@map("driver_trip_offers")
 }
 model DriverCarInfo {
@@ -162,7 +153,6 @@ model DriverCarInfo {
   driver     User     @relation(fields: [id_driver], references: [id], onDelete: Cascade, onUpdate: Cascade)
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
-
   @@map("driver_car_info")
 }
 model DriverWallet {
@@ -172,7 +162,6 @@ model DriverWallet {
   created_at   DateTime            @default(now())
   updated_at   DateTime            @updatedAt
   transactions WalletTransaction[]
-
   @@map("driver_wallets")
 }
 enum TransactionType {
@@ -191,7 +180,6 @@ model WalletTransaction {
   created_at        DateTime        @default(now())
   driver_wallet     DriverWallet    @relation(fields: [id_driver_wallet], references: [id_driver], onDelete: Cascade, onUpdate: Cascade)
   client_request    ClientRequests? @relation(fields: [id_client_request], references: [id], onDelete: SetNull, onUpdate: Cascade)
-
   @@map("wallet_transactions")
 }
 model UserCard {
@@ -207,7 +195,6 @@ model UserCard {
   created_at       DateTime @default(now())
   updated_at       DateTime @updatedAt
   user             User     @relation(fields: [id_user], references: [id], onDelete: Cascade, onUpdate: Cascade)
-
   @@map("user_cards")
 }
 model ChatMessage {
@@ -221,6 +208,5 @@ model ChatMessage {
   client_request    ClientRequests @relation(fields: [id_client_request], references: [id], onDelete: Cascade, onUpdate: Cascade)
   sender            User           @relation("sent_messages", fields: [id_sender], references: [id], onDelete: Cascade, onUpdate: Cascade)
   receiver          User           @relation("received_messages", fields: [id_receiver], references: [id], onDelete: Cascade, onUpdate: Cascade)
-
   @@map("chat_messages")
 }
