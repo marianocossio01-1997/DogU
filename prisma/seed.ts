@@ -60,7 +60,6 @@ const countriesData = [
   { country_code: 'ZA', country_name: 'Sudáfrica', currency_code: 'ZAR', currency_symbol: 'R', exchange_rate: 18.2, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },
   { country_code: 'EG', country_name: 'Egipto', currency_code: 'EGP', currency_symbol: 'E£', exchange_rate: 48.5, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },
   { country_code: 'NG', country_name: 'Nigeria', currency_code: 'NGN', currency_symbol: '₦', exchange_rate: 1500.0, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },
-  { country_code: 'KE', country_name: 'Kenia', currency_code: 'KES', currency_symbol: 'KSh', exchange_rate: 129.0, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },
   { country_code: 'MA', country_name: 'Marruecos', currency_code: 'MAD', currency_symbol: 'DH', exchange_rate: 9.85, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },
 ];
 async function main() {
