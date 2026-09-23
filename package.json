@@ -9,7 +9,7 @@
     "dev": "tsx watch src/server.ts",
     "build": "npx prisma generate",
     "postinstall": "npx prisma generate",
-    "seed": "npx prisma db seed",
+    "seed": "npx tsx prisma/seed.ts",
     "start": "npx prisma migrate deploy && npx prisma db seed && npx tsx src/server.ts"
   },
   "dependencies": {
