@@ -4,33 +4,36 @@
 generator client {
   provider = "prisma-client-js"
 }
+
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
+
 model User {
-  id                         Int                @id @default(autoincrement())
-  fullname                   String
-  email                      String             @unique
-  phone                      String
-  image                      String?
-  password                   String
-  notification_token         String?
-  create_at                  DateTime           @default(now())
-  update_at                  DateTime           @updatedAt
-  roles                      UserHasRole[]
-  driver_position            DriverPosition?
-  client_requests_as_client ClientRequests[]   @relation("client")
-  client_requests_as_driver ClientRequests[]   @relation("driver")
-  driverTripOffers           DriverTripOffer[]  @relation("DriverTripOffers")
-  driverCarInfo              DriverCarInfo?
-  driverWallet               DriverWallet?
-  cards                      UserCard[]
-  sent_messages              ChatMessage[]      @relation("sent_messages")
-  received_messages          ChatMessage[]      @relation("received_messages")
+  id                        Int               @id @default(autoincrement())
+  fullname                  String
+  email                     String            @unique
+  phone                     String
+  image                     String?
+  password                  String
+  notification_token        String?
+  create_at                 DateTime          @default(now())
+  update_at                 DateTime          @updatedAt
+  roles                     UserHasRole[]
+  driver_position           DriverPosition?
+  client_requests_as_client ClientRequests[]  @relation("client")
+  client_requests_as_driver ClientRequests[]  @relation("driver")
+  driverTripOffers          DriverTripOffer[] @relation("DriverTripOffers")
+  driverCarInfo             DriverCarInfo?
+  driverWallet              DriverWallet?
+  cards                     UserCard[]
+  sent_messages             ChatMessage[]     @relation("sent_messages")
+  received_messages         ChatMessage[]     @relation("received_messages")
 
   @@map("users")
 }
+
 model Role {
   id        String        @id
   fullname  String        @unique @db.VarChar(25)
@@ -42,26 +45,33 @@ model Role {
 
   @@map("roles")
 }
+
 model UserHasRole {
   id_user Int
   id_rol  String
   user    User   @relation(fields: [id_user], references: [id], onDelete: Cascade, onUpdate: Cascade)
   role    Role   @relation(fields: [id_rol], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
   @@id([id_user, id_rol])
   @@map("users_has_roles")
 }
+
 model DriverPosition {
   id_driver Int                  @id
   user      User                 @relation(fields: [id_driver], references: [id], onDelete: Cascade, onUpdate: Cascade)
   position  Unsupported("POINT")
+
   @@map("drivers_position")
 }
+
 model TimeAndDistanceValues {
   id        Int   @id
   km_value  Float
   min_value Float
+
   @@map("time_and_distance_values")
 }
+
 model CountryConfig {
   id              Int             @id @default(autoincrement())
   country_code    String          @unique @db.VarChar(5)
@@ -76,6 +86,7 @@ model CountryConfig {
 
   @@map("country_configs")
 }
+
 model PricingConfig {
   id                   Int           @id @default(autoincrement())
   id_country           Int
@@ -90,16 +101,19 @@ model PricingConfig {
 
   @@map("pricing_configs")
 }
+
 enum PaymentMethod {
   CASH
   CARD
 }
+
 enum PaymentStatus {
   PENDING
   PAID
   REFUNDED
   FAILED
 }
+
 model ClientRequests {
   id                      Int                 @id @default(autoincrement())
   id_client               Int
@@ -128,6 +142,7 @@ model ClientRequests {
 
   @@map("client_requests")
 }
+
 enum ClientRequestStatus {
   CREATED
   ACCEPTED
@@ -137,6 +152,7 @@ enum ClientRequestStatus {
   FINISHED
   CANCELLED
 }
+
 model DriverTripOffer {
   id                Int            @id @default(autoincrement())
   id_driver         Int
@@ -151,6 +167,7 @@ model DriverTripOffer {
 
   @@map("driver_trip_offers")
 }
+
 model DriverCarInfo {
   id_driver  Int      @id
   brand      String   @db.VarChar(50)
@@ -162,6 +179,7 @@ model DriverCarInfo {
 
   @@map("driver_car_info")
 }
+
 model DriverWallet {
   id_driver           Int                 @id
   balance             Float               @default(0.0)
@@ -178,12 +196,14 @@ model DriverWallet {
 
   @@map("driver_wallets")
 }
+
 enum TransactionType {
   TRIP_COMMISSION_DEBIT
   TRIP_EARNING_CREDIT
   CANCELLATION_FEE
   WITHDRAWAL
 }
+
 model WalletTransaction {
   id                Int             @id @default(autoincrement())
   id_driver_wallet Int
@@ -197,38 +217,48 @@ model WalletTransaction {
 
   @@map("wallet_transactions")
 }
+
 enum WithdrawalStatus {
   PENDING
   APPROVED
   REJECTED
 }
+
 model WithdrawalRequest {
   id               Int              @id @default(autoincrement())
   id_driver_wallet Int
+  id_card          Int?
   amount           Float
   status           WithdrawalStatus @default(PENDING)
   notes            String?          @db.VarChar(255)
   created_at       DateTime         @default(now())
   updated_at       DateTime         @updatedAt
+
   driver_wallet    DriverWallet     @relation(fields: [id_driver_wallet], references: [id_driver], onDelete: Cascade, onUpdate: Cascade)
+  card             UserCard?        @relation(fields: [id_card], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
   @@map("withdrawal_requests")
 }
+
 model UserCard {
-  id               Int      @id @default(autoincrement())
+  id               Int                 @id @default(autoincrement())
   id_user          Int
-  card_holder_name String   @db.VarChar(100)
-  last_4           String   @db.VarChar(4)
-  brand            String   @db.VarChar(30)
+  card_holder_name String              @db.VarChar(100)
+  last_4           String              @db.VarChar(4)
+  brand            String              @db.VarChar(30)
   expiration_month Int
   expiration_year  Int
-  card_token       String   @db.VarChar(255)
-  is_default       Boolean  @default(false)
-  created_at       DateTime @default(now())
-  updated_at       DateTime @updatedAt
-  user             User     @relation(fields: [id_user], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  card_token       String              @db.VarChar(255)
+  is_default       Boolean             @default(false)
+  created_at       DateTime            @default(now())
+  updated_at       DateTime            @updatedAt
+
+  user             User                @relation(fields: [id_user], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  withdrawals      WithdrawalRequest[]
 
   @@map("user_cards")
 }
+
 model ChatMessage {
   id                Int            @id @default(autoincrement())
   id_client_request Int

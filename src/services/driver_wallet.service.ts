@@ -65,9 +65,9 @@ export const processTripPayment = async (data: {
             const existingTx = await tx.walletTransaction.findFirst({
                 where: { id_client_request }
             });
+
             if (existingTx) {
                 console.log(`El viaje #${id_client_request} ya fue procesado previamente en la billetera.`);
-                
                 const currentWallet = await tx.driverWallet.findUnique({
                     where: { id_driver }
                 });
@@ -82,7 +82,6 @@ export const processTripPayment = async (data: {
             let amountTransaction = 0;
             let type: TransactionType;
             let description = '';
-
             if (payment_method === PaymentMethod.CASH) {
                 amountTransaction = -platformFee;
                 type = TransactionType.TRIP_COMMISSION_DEBIT;
@@ -116,7 +115,7 @@ export const processTripPayment = async (data: {
                     amount: amountTransaction,
                     type: type,
                     description: description
-                } as any
+                }
             });
             return {
                 wallet: updatedWallet,
@@ -127,6 +126,54 @@ export const processTripPayment = async (data: {
         });
     } catch (e) {
         throw new AppError(`Error al procesar el pago del viaje en la billetera: ${e}`, 500);
+    }
+};
+export const requestWithdrawal = async (data: {
+    id_driver: number;
+    amount: number;
+    id_card?: number;
+    notes?: string;
+}) => {
+    try {
+        const { id_driver, amount, id_card, notes } = data;
+        const wallet = await getOrCreateWallet(id_driver);
+        if (wallet.balance < amount) {
+            throw new AppError('Saldo insuficiente para realizar el retiro', 400);
+        }
+        return await prisma.$transaction(async (tx) => {
+            const updatedWallet = await tx.driverWallet.update({
+                where: { id_driver },
+                data: {
+                    balance: {
+                        decrement: amount
+                    }
+                }
+            });
+            const withdrawal = await tx.withdrawalRequest.create({
+                data: {
+                    id_driver_wallet: id_driver,
+                    id_card: id_card ?? null,
+                    amount: amount,
+                    notes: notes ?? null,
+                    status: 'PENDING'
+                }
+            });
+            const transaction = await tx.walletTransaction.create({
+                data: {
+                    id_driver_wallet: id_driver,
+                    amount: -amount,
+                    type: TransactionType.WITHDRAWAL,
+                    description: `Solicitud de retiro de ganancias \$${amount}`
+                }
+            });
+            return {
+                new_balance: updatedWallet.balance,
+                withdrawal,
+                transaction
+            };
+        });
+    } catch (e) {
+        throw new AppError(`Error al procesar la solicitud de retiro: ${e}`, 500);
     }
 };
 export const addTransaction = async (data: {
@@ -156,8 +203,9 @@ export const addTransaction = async (data: {
                     amount,
                     type,
                     description
-                } as any
+                }
             });
+
             return { wallet: updatedWallet, transaction: newTransaction };
         });
     } catch (e) {
