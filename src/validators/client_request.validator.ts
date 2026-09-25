@@ -14,7 +14,8 @@ export const assingDriverSchema = z.object({
     id: z.coerce.number().refine((val) => val > 0, { message: "El id de la solicitud es obligatorio" }),
     fare_assigned: z.coerce.number().refine((val) => val > 0, { message: "La oferta de tarifa es obligatorio" }),
     id_driver_assigned: z.coerce.number().refine((val) => val > 0, { message: "El id del conductor es obligatorio" }),
-    payment_method: z.enum(["CASH", "CARD"]).optional(), 
+    payment_method: z.enum(["CASH", "CARD"]).optional(),
+    id_card: z.coerce.number().optional(), 
 });
 export const updateClientRequestSchema = z.object({
     id: z.coerce.number().refine((val) => val > 0, { message: "El id de la solicitud es obligatorio" }),

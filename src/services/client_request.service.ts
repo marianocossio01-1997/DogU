@@ -241,6 +241,7 @@ export const assignDriver = async (data: AssignDriverInput) => {
         where: { id: data.id },
         include: { client: true }
     });
+
     if (!clientRequest) {
         throw new AppError(`La solicitud de viaje no existe`, 404);
     }
@@ -249,11 +250,19 @@ export const assignDriver = async (data: AssignDriverInput) => {
     let paymentId: string | null = null;
     let paymentStatus: 'PENDING' | 'PAID' = 'PENDING';
     if (paymentMethod === 'CARD') {
-        const userCard = await prisma.userCard.findFirst({
-            where: { id_user: clientRequest.id_client, is_default: true }
-        }) || await prisma.userCard.findFirst({
-            where: { id_user: clientRequest.id_client }
-        });
+        let userCard = null;
+        if (data.id_card) {
+            userCard = await prisma.userCard.findUnique({
+                where: { id: data.id_card }
+            });
+        }
+        if (!userCard) {
+            userCard = await prisma.userCard.findFirst({
+                where: { id_user: clientRequest.id_client, is_default: true }
+            }) || await prisma.userCard.findFirst({
+                where: { id_user: clientRequest.id_client }
+            });
+        }
         if (!userCard) {
             throw new AppError('El cliente no tiene una tarjeta seleccionada o configurada para este pago.', 400);
         }
@@ -265,9 +274,11 @@ export const assignDriver = async (data: AssignDriverInput) => {
                 payerEmail: clientRequest.client.email,
                 description: `Viaje DogU #${clientRequest.id}`
             });
+
             if (paymentResult.status !== 'approved') {
                 throw new AppError(`El pago fue rechazado por la entidad bancaria: ${paymentResult.status_detail}`, 400);
             }
+
             paymentId = paymentResult.id?.toString() || null;
             paymentStatus = 'PAID';
         } catch (error: any) {
@@ -286,6 +297,14 @@ export const assignDriver = async (data: AssignDriverInput) => {
             payment_id: paymentId
         }
     });
+    if (paymentStatus === 'PAID') {
+        await DriverWalletService.processTripPayment({
+            id_client_request: updatedDriverAssigned.id,
+            id_driver: data.id_driver_assigned,
+            total_fare: totalFare,
+            payment_method: paymentMethod
+        });
+    }
     return updatedDriverAssigned;
 };
 export const updateStatus = async (data: UpdateClientRequestInput) => {
@@ -303,13 +322,15 @@ export const updateStatus = async (data: UpdateClientRequestInput) => {
         }
     });
     if (newStatus === 'FINISHED' && updatedClientRequest.id_driver_assigned) {
-        const totalFare = updatedClientRequest.fare_assigned ?? updatedClientRequest.fare_offered;
-        await DriverWalletService.processTripPayment({
-            id_client_request: updatedClientRequest.id,
-            id_driver: updatedClientRequest.id_driver_assigned,
-            total_fare: totalFare,
-            payment_method: updatedClientRequest.payment_method
-        });
+        if (updatedClientRequest.payment_method === 'CASH' || updatedClientRequest.payment_status !== 'PAID') {
+            const totalFare = updatedClientRequest.fare_assigned ?? updatedClientRequest.fare_offered;
+            await DriverWalletService.processTripPayment({
+                id_client_request: updatedClientRequest.id,
+                id_driver: updatedClientRequest.id_driver_assigned,
+                total_fare: totalFare,
+                payment_method: updatedClientRequest.payment_method
+            });
+        }
     }
     return updatedClientRequest;
 };
@@ -332,7 +353,6 @@ export const updateDriverRating = async (data: UpdateDriverRatingInput) => {
     const clientRequest = await prisma.clientRequests.findUnique({
         where: { id: data.id }
     });
-
     if (!clientRequest) {
         throw new AppError(`La solicitud de viaje no existe`, 404);
     }
@@ -374,7 +394,6 @@ export const getTimeAndDistance = async (
 
     const body = response.data;
     console.log("📡 Google Distance Matrix Status:", body.status);
-
     if (body.status !== 'OK') {
         console.error("🚨 Google API devolvió estatus no OK:", body.error_message || body.status);
         throw new AppError(`Respuesta no válida del API de Google: ${body.status}`, 500);
@@ -388,6 +407,7 @@ export const getTimeAndDistance = async (
     const durationValue = element.duration.value; 
     const km = distanceValue / 1000;
     const minutes = durationValue / 60;
+
     let targetCountryCode = countryCode?.trim().toUpperCase();
     if (!targetCountryCode) {
         const detected = await getCountryCodeFromCoordinates(originLat, originLng, apikey);
@@ -503,7 +523,6 @@ export const getNearbyClientRequests = async (driverLat: number, driverLng: numb
                     key: apikey
                 }
             });
-
             if (response.data?.status === 'OK' && response.data?.rows?.[0]?.elements) {
                 elements = response.data.rows[0].elements;
             }

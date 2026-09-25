@@ -12,7 +12,7 @@ export const createClientRequest = async (req: Request, res: Response, next: Nex
 };
 export const assignDriver = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const body = req.body;
+        const body = req.body; 
         const result = await clientRequestService.assignDriver(body);
         return res.status(200).json(result);
     } catch (error) {
@@ -72,7 +72,6 @@ export const getNearbyClientRequests = async (req: Request, res: Response, next:
         if (isNaN(driverLat) || isNaN(driverLng)) {
             return res.status(400).json({ message: "Las coordenadas de latitud y longitud son inválidas" });
         }
-
         const result = await clientRequestService.getNearbyClientRequests(driverLat, driverLng);
         return res.status(200).json(result);
     } catch (error) {
@@ -88,7 +87,8 @@ export const getByClientRequest = async (req: Request, res: Response, next: Next
     } catch (error) {
         next(error);
     }           
-}; export const getTimeAndDistance = async (req: Request, res: Response, next: NextFunction) => {
+};
+export const getTimeAndDistance = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const originLat = Number(req.params.origin_lat ?? req.query.originLat);
         const originLng = Number(req.params.origin_lng ?? req.query.originLng);
@@ -110,4 +110,4 @@ export const getByClientRequest = async (req: Request, res: Response, next: Next
     } catch (error) {
         next(error);
     }           
-};
+}
