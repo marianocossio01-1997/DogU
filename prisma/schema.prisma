@@ -29,7 +29,6 @@ model User {
   cards                     UserCard[]
   sent_messages             ChatMessage[]     @relation("sent_messages")
   received_messages         ChatMessage[]     @relation("received_messages")
-
   @@map("users")
 }
 model Role {
@@ -40,36 +39,28 @@ model Role {
   create_at DateTime      @default(now())
   update_at DateTime      @updatedAt
   users     UserHasRole[]
-
   @@map("roles")
 }
-
 model UserHasRole {
   id_user Int
   id_rol  String
   user    User   @relation(fields: [id_user], references: [id], onDelete: Cascade, onUpdate: Cascade)
   role    Role   @relation(fields: [id_rol], references: [id], onDelete: Cascade, onUpdate: Cascade)
-
   @@id([id_user, id_rol])
   @@map("users_has_roles")
 }
-
 model DriverPosition {
   id_driver Int                  @id
   user      User                 @relation(fields: [id_driver], references: [id], onDelete: Cascade, onUpdate: Cascade)
   position  Unsupported("POINT")
-
   @@map("drivers_position")
 }
-
 model TimeAndDistanceValues {
   id        Int   @id
   km_value  Float
   min_value Float
-
   @@map("time_and_distance_values")
 }
-
 model CountryConfig {
   id              Int             @id @default(autoincrement())
   country_code    String          @unique @db.VarChar(5)
@@ -81,10 +72,8 @@ model CountryConfig {
   created_at      DateTime        @default(now())
   updated_at      DateTime        @updatedAt
   pricing_configs PricingConfig[]
-
   @@map("country_configs")
 }
-
 model PricingConfig {
   id                   Int           @id @default(autoincrement())
   id_country           Int
@@ -96,22 +85,18 @@ model PricingConfig {
   country              CountryConfig @relation(fields: [id_country], references: [id], onDelete: Cascade, onUpdate: Cascade)
   created_at           DateTime      @default(now())
   updated_at           DateTime      @updatedAt
-
   @@map("pricing_configs")
 }
-
 enum PaymentMethod {
   CASH
   CARD
 }
-
 enum PaymentStatus {
   PENDING
   PAID
   REFUNDED
   FAILED
 }
-
 model ClientRequests {
   id                      Int                 @id @default(autoincrement())
   id_client               Int
@@ -142,7 +127,6 @@ model ClientRequests {
 
   @@map("client_requests")
 }
-
 enum ClientRequestStatus {
   CREATED
   ACCEPTED
@@ -152,7 +136,6 @@ enum ClientRequestStatus {
   FINISHED
   CANCELLED
 }
-
 model DriverTripOffer {
   id                Int            @id @default(autoincrement())
   id_driver         Int
@@ -164,10 +147,8 @@ model DriverTripOffer {
   updated_at        DateTime       @updatedAt
   driver            User           @relation("DriverTripOffers", fields: [id_driver], references: [id], onDelete: Cascade, onUpdate: Cascade)
   clientRequest     ClientRequests @relation(fields: [id_client_request], references: [id], onDelete: Cascade, onUpdate: Cascade)
-
   @@map("driver_trip_offers")
 }
-
 model DriverCarInfo {
   id_driver  Int      @id
   brand      String   @db.VarChar(50)
@@ -176,10 +157,8 @@ model DriverCarInfo {
   driver     User     @relation(fields: [id_driver], references: [id], onDelete: Cascade, onUpdate: Cascade)
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
-
   @@map("driver_car_info")
 }
-
 model DriverWallet {
   id_driver           Int                 @id
   balance             Float               @default(0.0)
@@ -193,17 +172,14 @@ model DriverWallet {
   updated_at          DateTime            @updatedAt
   transactions        WalletTransaction[]
   withdrawals         WithdrawalRequest[]
-
   @@map("driver_wallets")
 }
-
 enum TransactionType {
   TRIP_COMMISSION_DEBIT
   TRIP_EARNING_CREDIT
   CANCELLATION_FEE
   WITHDRAWAL
 }
-
 model WalletTransaction {
   id                Int             @id @default(autoincrement())
   id_driver_wallet Int
@@ -214,16 +190,13 @@ model WalletTransaction {
   created_at        DateTime        @default(now())
   driver_wallet     DriverWallet    @relation(fields: [id_driver_wallet], references: [id_driver], onDelete: Cascade, onUpdate: Cascade)
   client_request    ClientRequests? @relation(fields: [id_client_request], references: [id], onDelete: SetNull, onUpdate: Cascade)
-
   @@map("wallet_transactions")
 }
-
 enum WithdrawalStatus {
   PENDING
   APPROVED
   REJECTED
 }
-
 model WithdrawalRequest {
   id               Int              @id @default(autoincrement())
   id_driver_wallet Int
@@ -233,13 +206,10 @@ model WithdrawalRequest {
   notes            String?          @db.VarChar(255)
   created_at       DateTime         @default(now())
   updated_at       DateTime         @updatedAt
-
   driver_wallet    DriverWallet     @relation(fields: [id_driver_wallet], references: [id_driver], onDelete: Cascade, onUpdate: Cascade)
   card             UserCard?        @relation(fields: [id_card], references: [id], onDelete: SetNull, onUpdate: Cascade)
-
   @@map("withdrawal_requests")
 }
-
 model UserCard {
   id               Int                 @id @default(autoincrement())
   id_user          Int
@@ -252,14 +222,11 @@ model UserCard {
   is_default       Boolean             @default(false)
   created_at       DateTime            @default(now())
   updated_at       DateTime            @updatedAt
-
   user             User                @relation(fields: [id_user], references: [id], onDelete: Cascade, onUpdate: Cascade)
   withdrawals      WithdrawalRequest[]
   client_requests  ClientRequests[]
-
   @@map("user_cards")
 }
-
 model ChatMessage {
   id                Int            @id @default(autoincrement())
   id_client_request Int
@@ -271,6 +238,5 @@ model ChatMessage {
   client_request    ClientRequests @relation(fields: [id_client_request], references: [id], onDelete: Cascade, onUpdate: Cascade)
   sender            User           @relation("sent_messages", fields: [id_sender], references: [id], onDelete: Cascade, onUpdate: Cascade)
   receiver          User           @relation("received_messages", fields: [id_receiver], references: [id], onDelete: Cascade, onUpdate: Cascade)
-
   @@map("chat_messages")
 }

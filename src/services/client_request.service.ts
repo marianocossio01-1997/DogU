@@ -15,7 +15,6 @@ import type { ClientRequestStatus } from '../generated/prisma/enums.js';
 const normalizeBigInt = (obj: any) => JSON.parse(
     JSON.stringify(obj, (_, value) => typeof value === 'bigint' ? Number(value) : value)
 );
-
 const parseJsonIfNeeded = (val: any) => {
     if (typeof val === 'string') {
         try { return JSON.parse(val); } catch { return val; }
@@ -248,6 +247,9 @@ export const assignDriver = async (data: AssignDriverInput) => {
     }
     const paymentMethod = data.payment_method || clientRequest.payment_method || 'CASH';
     const totalFare = data.fare_assigned ?? clientRequest.fare_offered;
+    const commissionRate = 0.20;
+    const platformFee = totalFare * commissionRate;
+    const driverEarnings = totalFare * (1 - commissionRate);
     let paymentId: string | null = null;
     let paymentStatus: 'PENDING' | 'PAID' = 'PENDING';
     if (paymentMethod === 'CARD') {
@@ -267,6 +269,7 @@ export const assignDriver = async (data: AssignDriverInput) => {
         if (!userCard) {
             throw new AppError('El cliente no tiene una tarjeta seleccionada o configurada para este pago.', 400);
         }
+
         try {
             const paymentResult = await processCardPayment({
                 token: userCard.card_token,
@@ -290,8 +293,11 @@ export const assignDriver = async (data: AssignDriverInput) => {
         where: { id: data.id },
         data: {
             id_driver_assigned: data.id_driver_assigned,
+            id_card: data.id_card ?? null,
             status: 'ACCEPTED',
             fare_assigned: totalFare,
+            platform_fee: platformFee,
+            driver_earnings: driverEarnings,
             payment_method: paymentMethod,
             payment_status: paymentStatus,
             payment_id: paymentId
@@ -332,7 +338,6 @@ export const updateStatus = async (data: UpdateClientRequestInput) => {
             });
         }
     }
-
     return updatedClientRequest;
 };
 export const updateClientRating = async (data: UpdateClientRatingInput) => {

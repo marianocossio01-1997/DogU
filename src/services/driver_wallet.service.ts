@@ -1,6 +1,6 @@
+import { PaymentMethod, TransactionType } from '@prisma/client';
 import prisma from '../database/prismaClient.js';
 import { AppError } from '../utils/AppError.js';
-import { TransactionType, PaymentMethod } from '@prisma/client';
 
 export const getOrCreateWallet = async (id_driver: number) => {
     try {
@@ -59,15 +59,16 @@ export const processTripPayment = async (data: {
 }) => {
     try {
         const { id_client_request, id_driver, total_fare, payment_method } = data;
-        const commissionRate = 0.20; 
-        const platformFee = total_fare * commissionRate; 
-        const driverEarnings = total_fare * (1 - commissionRate); 
+        const commissionRate = 0.20;
+        const platformFee = total_fare * commissionRate;
+        const driverEarnings = total_fare * (1 - commissionRate);
         const wallet = await getOrCreateWallet(id_driver);
         const walletId = (wallet as any).id ?? wallet.id_driver;
         return await prisma.$transaction(async (tx) => {
             const existingTx = await tx.walletTransaction.findFirst({
                 where: { id_client_request }
             });
+
             if (existingTx) {
                 console.log(`El viaje #${id_client_request} ya fue procesado previamente en la billetera.`);
                 const currentWallet = await tx.driverWallet.findUnique({
@@ -207,6 +208,7 @@ export const addTransaction = async (data: {
                     description
                 }
             });
+
             return { wallet: updatedWallet, transaction: newTransaction };
         });
     } catch (e) {
