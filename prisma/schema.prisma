@@ -4,12 +4,10 @@
 generator client {
   provider = "prisma-client-js"
 }
-
 datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
-
 model User {
   id                        Int               @id @default(autoincrement())
   fullname                  String
@@ -18,6 +16,7 @@ model User {
   image                     String?
   password                  String
   notification_token        String?
+  customer_id_mp            String?           @db.VarChar(255)
   create_at                 DateTime          @default(now())
   update_at                 DateTime          @updatedAt
   roles                     UserHasRole[]
@@ -33,7 +32,6 @@ model User {
 
   @@map("users")
 }
-
 model Role {
   id        String        @id
   fullname  String        @unique @db.VarChar(25)
@@ -118,8 +116,10 @@ model ClientRequests {
   id                      Int                 @id @default(autoincrement())
   id_client               Int
   id_driver_assigned      Int?
+  id_card                 Int?
   client                  User                @relation("client", fields: [id_client], references: [id])
   driver                  User?               @relation("driver", fields: [id_driver_assigned], references: [id])
+  card                    UserCard?           @relation(fields: [id_card], references: [id], onDelete: SetNull)
   fare_offered            Float
   fare_assigned           Float?
   platform_fee            Float?
@@ -255,6 +255,7 @@ model UserCard {
 
   user             User                @relation(fields: [id_user], references: [id], onDelete: Cascade, onUpdate: Cascade)
   withdrawals      WithdrawalRequest[]
+  client_requests  ClientRequests[]
 
   @@map("user_cards")
 }

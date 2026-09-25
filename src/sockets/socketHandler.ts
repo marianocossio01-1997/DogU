@@ -151,7 +151,8 @@ export const initializaSocket = (server: Httpserver) => {
                     "client": updatedClient,
                     "client_image": finalImageUrl || "",
                     "payment_method": data?.payment_method || "CASH",
-                    "payment_status": data?.payment_status || "PENDING"
+                    "payment_status": data?.payment_status || "PENDING",
+                    "payment_id": data?.payment_id || null
                 };
                 io.emit("created_client_request", clientRequest);
             } catch (error) {
@@ -198,7 +199,8 @@ export const initializaSocket = (server: Httpserver) => {
                         } : {},
                         client_image: finalImageUrl || "",
                         payment_method: requestDb.payment_method || "CASH",
-                        payment_status: requestDb.payment_status || "PENDING"
+                        payment_status: requestDb.payment_status || "PENDING",
+                        payment_id: requestDb.payment_id || null
                     };
 
                     io.emit("created_client_request", payload);
@@ -297,7 +299,10 @@ export const initializaSocket = (server: Httpserver) => {
             const clientRequest = {
                 "id_socket": socket.id,
                 "id_client_request": data?.id_client_request,
-                "id_driver": idDriver
+                "id_driver": idDriver,
+                "payment_method": data?.payment_method || "CASH",
+                "payment_status": data?.payment_status || "PENDING",
+                "payment_id": data?.payment_id || null
             };
             console.log(`🚕 Nuevo conductor asignado (${idDriver}) para viaje:`, clientRequest);
             io.emit(`driver_assigned/${idDriver}`, clientRequest);
@@ -318,7 +323,8 @@ export const initializaSocket = (server: Httpserver) => {
                 "id_client_request": idClientRequest,
                 "status": data?.status,
                 "payment_method": data?.payment_method,
-                "payment_status": data?.payment_status
+                "payment_status": data?.payment_status,
+                "payment_id": data?.payment_id || null
             };
             io.emit(`new_status_trip/${idClientRequest}`, clientRequest);
         });
@@ -358,8 +364,3 @@ export const getIO = (): Server => {
     }
     return io;
 };
-
-
-
-
-

@@ -2,6 +2,7 @@ import prisma from '../database/prismaClient.js';
 import { AppError } from '../utils/AppError.js';
 import axios from 'axios';
 import * as DriverWalletService from './driver_wallet.service.js';
+import { processCardPayment } from './PaymentService.js';
 import type { 
     AssignDriverInput, 
     CreateClientRequestInput, 
@@ -28,7 +29,6 @@ const formatImageUrl = (imagePath: string | null | undefined): string | null => 
     }
     const baseUrl = process.env.BASE_URL || process.env.SERVER_URL;
     const pathWithSlash = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
-
     if (baseUrl) {
         const cleanBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
         return `${cleanBase}${pathWithSlash}`;
@@ -43,17 +43,13 @@ const getCountryCodeFromCoordinates = async (lat: number, lng: number, apiKey: s
         }
         const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}&language=en`;
         const response = await axios.get(url);
-        
         console.log("🔍 Status de Google Reverse Geocoding:", response.data?.status);
-
         if (response.data?.status === 'OK' && response.data.results?.length > 0) {
             for (const result of response.data.results) {
                 if (!result.address_components) continue;
-                
                 const countryComponent = result.address_components.find((c: any) =>
                     c.types && c.types.includes('country')
                 );
-
                 if (countryComponent?.short_name) {
                     const countryCode = countryComponent.short_name.toUpperCase();
                     console.log(`📍 País detectado con éxito por coordenadas (${lat}, ${lng}):`, countryCode);
@@ -242,17 +238,52 @@ export const getByClientRequest = async (id: number) => {
 };
 export const assignDriver = async (data: AssignDriverInput) => {
     const clientRequest = await prisma.clientRequests.findUnique({
-        where: { id: data.id }
+        where: { id: data.id },
+        include: { client: true }
     });
     if (!clientRequest) {
         throw new AppError(`La solicitud de viaje no existe`, 404);
+    }
+    const paymentMethod = data.payment_method || clientRequest.payment_method || 'CASH';
+    const totalFare = data.fare_assigned ?? clientRequest.fare_offered;
+    let paymentId: string | null = null;
+    let paymentStatus: 'PENDING' | 'PAID' = 'PENDING';
+    if (paymentMethod === 'CARD') {
+        const userCard = await prisma.userCard.findFirst({
+            where: { id_user: clientRequest.id_client, is_default: true }
+        }) || await prisma.userCard.findFirst({
+            where: { id_user: clientRequest.id_client }
+        });
+        if (!userCard) {
+            throw new AppError('El cliente no tiene una tarjeta seleccionada o configurada para este pago.', 400);
+        }
+        try {
+            const paymentResult = await processCardPayment({
+                token: userCard.card_token,
+                paymentMethodId: userCard.brand.toLowerCase(),
+                transactionAmount: totalFare,
+                payerEmail: clientRequest.client.email,
+                description: `Viaje DogU #${clientRequest.id}`
+            });
+            if (paymentResult.status !== 'approved') {
+                throw new AppError(`El pago fue rechazado por la entidad bancaria: ${paymentResult.status_detail}`, 400);
+            }
+            paymentId = paymentResult.id?.toString() || null;
+            paymentStatus = 'PAID';
+        } catch (error: any) {
+            console.error("🚨 Error cobrando con tarjeta en assignDriver:", error);
+            throw new AppError(error.message || 'Error procesando el cobro en la tarjeta del cliente', 400);
+        }
     }
     const updatedDriverAssigned = await prisma.clientRequests.update({
         where: { id: data.id },
         data: {
             id_driver_assigned: data.id_driver_assigned,
             status: 'ACCEPTED',
-            fare_assigned: data.fare_assigned
+            fare_assigned: totalFare,
+            payment_method: paymentMethod,
+            payment_status: paymentStatus,
+            payment_id: paymentId
         }
     });
     return updatedDriverAssigned;
@@ -301,6 +332,7 @@ export const updateDriverRating = async (data: UpdateDriverRatingInput) => {
     const clientRequest = await prisma.clientRequests.findUnique({
         where: { id: data.id }
     });
+
     if (!clientRequest) {
         throw new AppError(`La solicitud de viaje no existe`, 404);
     }
@@ -339,8 +371,10 @@ export const getTimeAndDistance = async (
         console.error("🚨 Error al conectar con Google Distance Matrix API:", error?.message || error);
         throw new AppError("Error al conectarse al API de Google Distance", 500);
     } 
+
     const body = response.data;
     console.log("📡 Google Distance Matrix Status:", body.status);
+
     if (body.status !== 'OK') {
         console.error("🚨 Google API devolvió estatus no OK:", body.error_message || body.status);
         throw new AppError(`Respuesta no válida del API de Google: ${body.status}`, 500);
@@ -469,6 +503,7 @@ export const getNearbyClientRequests = async (driverLat: number, driverLng: numb
                     key: apikey
                 }
             });
+
             if (response.data?.status === 'OK' && response.data?.rows?.[0]?.elements) {
                 elements = response.data.rows[0].elements;
             }
@@ -491,7 +526,6 @@ export const getNearbyClientRequests = async (driverLat: number, driverLng: numb
             };
         });
         return normalizeBigInt(formatted);
-
     } catch (e: unknown) {
         const message = e instanceof Error ? e.message : String(e);
         console.error("💥 Error detallado en getNearbyClientRequests Service:", e);
