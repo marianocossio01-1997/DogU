@@ -3,18 +3,19 @@ import { AppError } from '../utils/AppError.js';
 import axios from 'axios';
 import * as DriverWalletService from './driver_wallet.service.js';
 import { processCardPayment } from './PaymentService.js';
-import type { 
-    AssignDriverInput, 
-    CreateClientRequestInput, 
-    UpdateClientRatingInput, 
-    UpdateClientRequestInput, 
-    UpdateDriverRatingInput 
+import type {
+    AssignDriverInput,
+    CreateClientRequestInput,
+    UpdateClientRatingInput,
+    UpdateClientRequestInput,
+    UpdateDriverRatingInput
 } from '../validators/client_request.validator.js';
 import type { ClientRequestStatus } from '../generated/prisma/enums.js';
 
 const normalizeBigInt = (obj: any) => JSON.parse(
     JSON.stringify(obj, (_, value) => typeof value === 'bigint' ? Number(value) : value)
 );
+
 const parseJsonIfNeeded = (val: any) => {
     if (typeof val === 'string') {
         try { return JSON.parse(val); } catch { return val; }
@@ -108,7 +109,7 @@ export const getByClientRequestCreated = async (id: number) => {
     const rawData = await prisma.$queryRaw<any[]>`
         SELECT
             CR.id,
-            CR.id_client, 
+            CR.id_client,
             CR.fare_offered,
             CR.fare_assigned,
             CR.platform_fee,
@@ -134,15 +135,15 @@ export const getByClientRequestCreated = async (id: number) => {
                 'image', U.image
             ) AS client
         FROM
-            client_requests AS CR  
+            client_requests AS CR
         INNER JOIN
-            users AS U  
+            users AS U
         ON
-            U.id = CR.id_client  
+            U.id = CR.id_client
         WHERE
             CR.id = ${id}
     `;
-    if (!rawData.length) return null;  
+    if (!rawData.length) return null;
     const item = rawData[0];
     const clientObj = parseJsonIfNeeded(item.client) || {};
     const formatted = {
@@ -160,7 +161,7 @@ export const getByClientRequest = async (id: number) => {
     const rawData = await prisma.$queryRaw<any[]>`
         SELECT
             CR.id,
-            CR.id_client, 
+            CR.id_client,
             CR.id_driver_assigned,
             CR.fare_offered,
             CR.fare_assigned,
@@ -200,23 +201,23 @@ export const getByClientRequest = async (id: number) => {
                 'plate', DCI.plate
             ) AS car
         FROM
-            client_requests AS CR  
+            client_requests AS CR
         INNER JOIN
-            users AS U  
+            users AS U
         ON
-            U.id = CR.id_client  
+            U.id = CR.id_client
         LEFT JOIN
-            users AS D  
+            users AS D
         ON
             D.id = CR.id_driver_assigned
         LEFT JOIN
             driver_car_info AS DCI
         ON
-            DCI.id_driver = CR.id_driver_assigned  
+            DCI.id_driver = CR.id_driver_assigned
         WHERE
             CR.id = ${id}
     `;
-    if (!rawData.length) return null;  
+    if (!rawData.length) return null;
     const item = rawData[0];
     const clientObj = parseJsonIfNeeded(item.client) || {};
     const driverObj = parseJsonIfNeeded(item.driver) || {};
@@ -278,7 +279,6 @@ export const assignDriver = async (data: AssignDriverInput) => {
             if (paymentResult.status !== 'approved') {
                 throw new AppError(`El pago fue rechazado por la entidad bancaria: ${paymentResult.status_detail}`, 400);
             }
-
             paymentId = paymentResult.id?.toString() || null;
             paymentStatus = 'PAID';
         } catch (error: any) {
@@ -297,12 +297,12 @@ export const assignDriver = async (data: AssignDriverInput) => {
             payment_id: paymentId
         }
     });
-    if (paymentStatus === 'PAID') {
+    if (paymentMethod === 'CASH') {
         await DriverWalletService.processTripPayment({
             id_client_request: updatedDriverAssigned.id,
             id_driver: data.id_driver_assigned,
             total_fare: totalFare,
-            payment_method: paymentMethod
+            payment_method: 'CASH'
         });
     }
     return updatedDriverAssigned;
@@ -322,16 +322,17 @@ export const updateStatus = async (data: UpdateClientRequestInput) => {
         }
     });
     if (newStatus === 'FINISHED' && updatedClientRequest.id_driver_assigned) {
-        if (updatedClientRequest.payment_method === 'CASH' || updatedClientRequest.payment_status !== 'PAID') {
-            const totalFare = updatedClientRequest.fare_assigned ?? updatedClientRequest.fare_offered;
+        const totalFare = updatedClientRequest.fare_assigned ?? updatedClientRequest.fare_offered;
+        if (updatedClientRequest.payment_method === 'CARD') {
             await DriverWalletService.processTripPayment({
                 id_client_request: updatedClientRequest.id,
                 id_driver: updatedClientRequest.id_driver_assigned,
                 total_fare: totalFare,
-                payment_method: updatedClientRequest.payment_method
+                payment_method: 'CARD'
             });
         }
     }
+
     return updatedClientRequest;
 };
 export const updateClientRating = async (data: UpdateClientRatingInput) => {
@@ -390,8 +391,7 @@ export const getTimeAndDistance = async (
     } catch (error: any) {
         console.error("🚨 Error al conectar con Google Distance Matrix API:", error?.message || error);
         throw new AppError("Error al conectarse al API de Google Distance", 500);
-    } 
-
+    }
     const body = response.data;
     console.log("📡 Google Distance Matrix Status:", body.status);
     if (body.status !== 'OK') {
@@ -403,11 +403,10 @@ export const getTimeAndDistance = async (
         console.error("🚨 Elemento de ruta no válido en Google API:", element?.status);
         throw new AppError(`No se puede calcular la distancia y duración para la ruta seleccionada`, 500);
     }
-    const distanceValue = element.distance.value; 
-    const durationValue = element.duration.value; 
+    const distanceValue = element.distance.value;
+    const durationValue = element.duration.value;
     const km = distanceValue / 1000;
     const minutes = durationValue / 60;
-
     let targetCountryCode = countryCode?.trim().toUpperCase();
     if (!targetCountryCode) {
         const detected = await getCountryCodeFromCoordinates(originLat, originLng, apikey);
@@ -450,10 +449,10 @@ export const getTimeAndDistance = async (
             value: durationValue
         },
         country_code: resolvedCountryCode,
-        currency_code: currencyCode,        
-        currency_symbol: currencySymbol,    
+        currency_code: currencyCode,
+        currency_symbol: currencySymbol,
         exchange_rate: exchangeRate,
-        recommended_value: recommendedValueLocal,           
+        recommended_value: recommendedValueLocal,
         origin_addresses: body.origin_addresses?.[0] ?? 'Origen',
         destination_addresses: body.destination_addresses?.[0] ?? 'Destino',
     };
@@ -463,7 +462,7 @@ export const getNearbyClientRequests = async (driverLat: number, driverLng: numb
         const rawData = await prisma.$queryRaw<any[]>`
             SELECT
                 CR.id,
-                CR.id_client, 
+                CR.id_client,
                 CR.fare_offered,
                 CR.fare_assigned,
                 CR.platform_fee,
@@ -491,15 +490,15 @@ export const getNearbyClientRequests = async (driverLat: number, driverLng: numb
                     'image', U.image
                 ) AS client
             FROM
-                client_requests AS CR  
+                client_requests AS CR
             INNER JOIN
-                users AS U  
+                users AS U
             ON
-                U.id = CR.id_client  
+                U.id = CR.id_client
             WHERE
-                timestampdiff(MINUTE, CR.updated_at, NOW()) < 10000 AND status = "CREATED"  
+                timestampdiff(MINUTE, CR.updated_at, NOW()) < 10000 AND status = "CREATED"
             HAVING
-                distance <= 5000000  
+                distance <= 5000000
         `;
         if (!rawData || !rawData.length) {
             return [];
@@ -555,7 +554,7 @@ export const getByClientAssigned = async (id_client: number) => {
     const rawData = await prisma.$queryRaw<any[]>`
         SELECT
             CR.id,
-            CR.id_client, 
+            CR.id_client,
             CR.id_driver_assigned,
             CR.fare_offered,
             CR.fare_assigned,
@@ -595,23 +594,23 @@ export const getByClientAssigned = async (id_client: number) => {
                 'plate', DCI.plate
             ) AS car
         FROM
-            client_requests AS CR  
+            client_requests AS CR
         INNER JOIN
-            users AS U  
+            users AS U
         ON
-            U.id = CR.id_client  
+            U.id = CR.id_client
         LEFT JOIN
-            users AS D  
+            users AS D
         ON
             D.id = CR.id_driver_assigned
         LEFT JOIN
             driver_car_info AS DCI
         ON
-            DCI.id_driver = CR.id_driver_assigned  
+            DCI.id_driver = CR.id_driver_assigned
         WHERE
-            CR.id_client = ${id_client} AND CR.status = 'FINISHED'    
+            CR.id_client = ${id_client} AND CR.status = 'FINISHED'
     `;
-    if (!rawData.length) return [];  
+    if (!rawData.length) return [];
     const formatted = rawData.map((item: any) => {
         const clientObj = parseJsonIfNeeded(item.client) || {};
         const driverObj = parseJsonIfNeeded(item.driver) || {};
@@ -636,7 +635,7 @@ export const getByDriverAssigned = async (id_driver_assigned: number) => {
     const rawData = await prisma.$queryRaw<any[]>`
         SELECT
             CR.id,
-            CR.id_client, 
+            CR.id_client,
             CR.id_driver_assigned,
             CR.fare_offered,
             CR.fare_assigned,
@@ -676,23 +675,23 @@ export const getByDriverAssigned = async (id_driver_assigned: number) => {
                 'plate', DCI.plate
             ) AS car
         FROM
-            client_requests AS CR  
+            client_requests AS CR
         INNER JOIN
-            users AS U  
+            users AS U
         ON
-            U.id = CR.id_client  
+            U.id = CR.id_client
         LEFT JOIN
-            users AS D  
+            users AS D
         ON
             D.id = CR.id_driver_assigned
         LEFT JOIN
             driver_car_info AS DCI
         ON
-            DCI.id_driver = CR.id_driver_assigned  
+            DCI.id_driver = CR.id_driver_assigned
         WHERE
-            CR.id_driver_assigned = ${id_driver_assigned} AND CR.status = 'FINISHED'    
+            CR.id_driver_assigned = ${id_driver_assigned} AND CR.status = 'FINISHED'
     `;
-    if (!rawData.length) return [];  
+    if (!rawData.length) return [];
     const formatted = rawData.map((item: any) => {
         const clientObj = parseJsonIfNeeded(item.client) || {};
         const driverObj = parseJsonIfNeeded(item.driver) || {};

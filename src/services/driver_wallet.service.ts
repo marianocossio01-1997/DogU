@@ -31,8 +31,10 @@ export const getOrCreateWallet = async (id_driver: number) => {
 };
 export const getTransactions = async (id_driver: number) => {
     try {
+        const wallet = await getOrCreateWallet(id_driver);
+        const walletId = (wallet as any).id ?? wallet.id_driver;
         const transactions = await prisma.walletTransaction.findMany({
-            where: { id_driver_wallet: id_driver },
+            where: { id_driver_wallet: walletId },
             orderBy: { created_at: 'desc' },
             include: {
                 client_request: {
@@ -57,21 +59,20 @@ export const processTripPayment = async (data: {
 }) => {
     try {
         const { id_client_request, id_driver, total_fare, payment_method } = data;
-        const commissionRate = 0.20;
+        const commissionRate = 0.20; 
         const platformFee = total_fare * commissionRate; 
         const driverEarnings = total_fare * (1 - commissionRate); 
-        await getOrCreateWallet(id_driver);
+        const wallet = await getOrCreateWallet(id_driver);
+        const walletId = (wallet as any).id ?? wallet.id_driver;
         return await prisma.$transaction(async (tx) => {
             const existingTx = await tx.walletTransaction.findFirst({
                 where: { id_client_request }
             });
-
             if (existingTx) {
                 console.log(`El viaje #${id_client_request} ya fue procesado previamente en la billetera.`);
                 const currentWallet = await tx.driverWallet.findUnique({
                     where: { id_driver }
                 });
-
                 return {
                     wallet: currentWallet,
                     transaction: existingTx,
@@ -110,7 +111,7 @@ export const processTripPayment = async (data: {
             });
             const newTransaction = await tx.walletTransaction.create({
                 data: {
-                    id_driver_wallet: id_driver,
+                    id_driver_wallet: walletId,
                     id_client_request: id_client_request,
                     amount: amountTransaction,
                     type: type,
@@ -137,7 +138,8 @@ export const requestWithdrawal = async (data: {
     try {
         const { id_driver, amount, id_card, notes } = data;
         const wallet = await getOrCreateWallet(id_driver);
-        if (wallet.balance < amount) {
+        const walletId = (wallet as any).id ?? wallet.id_driver;
+        if (Number(wallet.balance) < amount) {
             throw new AppError('Saldo insuficiente para realizar el retiro', 400);
         }
         return await prisma.$transaction(async (tx) => {
@@ -151,7 +153,7 @@ export const requestWithdrawal = async (data: {
             });
             const withdrawal = await tx.withdrawalRequest.create({
                 data: {
-                    id_driver_wallet: id_driver,
+                    id_driver_wallet: walletId,
                     id_card: id_card ?? null,
                     amount: amount,
                     notes: notes ?? null,
@@ -160,10 +162,10 @@ export const requestWithdrawal = async (data: {
             });
             const transaction = await tx.walletTransaction.create({
                 data: {
-                    id_driver_wallet: id_driver,
+                    id_driver_wallet: walletId,
                     amount: -amount,
                     type: TransactionType.WITHDRAWAL,
-                    description: `Solicitud de retiro de ganancias \$${amount}`
+                    description: `Solicitud de retiro de ganancias $${amount}`
                 }
             });
             return {
@@ -185,8 +187,8 @@ export const addTransaction = async (data: {
 }) => {
     try {
         const { id_driver, id_client_request, amount, type, description } = data;
-        await getOrCreateWallet(id_driver);
-
+        const wallet = await getOrCreateWallet(id_driver);
+        const walletId = (wallet as any).id ?? wallet.id_driver;
         return await prisma.$transaction(async (tx) => {
             const updatedWallet = await tx.driverWallet.update({
                 where: { id_driver },
@@ -198,14 +200,13 @@ export const addTransaction = async (data: {
             });
             const newTransaction = await tx.walletTransaction.create({
                 data: {
-                    id_driver_wallet: id_driver,
+                    id_driver_wallet: walletId,
                     id_client_request: id_client_request ?? null,
                     amount,
                     type,
                     description
                 }
             });
-
             return { wallet: updatedWallet, transaction: newTransaction };
         });
     } catch (e) {
