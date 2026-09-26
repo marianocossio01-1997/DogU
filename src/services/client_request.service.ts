@@ -503,7 +503,7 @@ export const getNearbyClientRequests = async (driverLat: number, driverLng: numb
             WHERE
                 timestampdiff(MINUTE, CR.updated_at, NOW()) < 10000 AND status = "CREATED"
             HAVING
-                distance <= 5000000
+                distance <= 5000
         `;
         if (!rawData || !rawData.length) {
             return [];
