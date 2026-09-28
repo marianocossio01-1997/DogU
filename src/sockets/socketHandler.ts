@@ -6,6 +6,18 @@ import prisma from "../database/prismaClient.js";
 let io: Server;
 const activeDriversMap = new Map<number, { id: number; lat: number; lng: number; updatedAt: number }>();
 const socketToDriverMap = new Map<string, number>();
+const getDistanceInKm = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371; 
+    const dLat = (lat2 - lat1) * (Math.PI / 180);
+    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * (Math.PI / 180)) *
+        Math.cos(lat2 * (Math.PI / 180)) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+};
 const formatImageUrl = (imagePath: string | null | undefined): string | null => {
     if (!imagePath || imagePath.trim() === '' || imagePath === 'null') return null;
     const cleanPath = imagePath.trim();
@@ -68,7 +80,7 @@ export const initializaSocket = (server: Httpserver) => {
             const driverId = Number(data?.id || data?.id_driver);
             const lat = Number(data?.lat);
             const lng = Number(data?.lng);
-            if (driverId && lat && lng) {
+            if (driverId && !isNaN(lat) && !isNaN(lng)) {
                 socketToDriverMap.set(socket.id, driverId);
                 activeDriversMap.set(driverId, {
                     id: driverId,
@@ -109,7 +121,7 @@ export const initializaSocket = (server: Httpserver) => {
                 console.error("🚨 Error al procesar 'get_nearby_drivers':", error);
                 socket.emit("nearby_drivers", []);
             }
-        });
+        })
         socket.on("new_client_request", async (data: any) => {
             try {
                 const idRequest = data?.id_client_request || data?.id;
@@ -154,7 +166,25 @@ export const initializaSocket = (server: Httpserver) => {
                     "payment_status": data?.payment_status || "PENDING",
                     "payment_id": data?.payment_id || null
                 };
-                io.emit("created_client_request", clientRequest);
+                const pickupLat = Number(data?.pickup_lat || data?.pickupLat || data?.lat);
+                const pickupLng = Number(data?.pickup_lng || data?.pickupLng || data?.lng);
+                if (!isNaN(pickupLat) && !isNaN(pickupLng)) {
+                    let notifiedCount = 0;
+                    for (const [socketId, driverId] of socketToDriverMap.entries()) {
+                        const driverPos = activeDriversMap.get(driverId);
+                        if (driverPos && (Date.now() - driverPos.updatedAt < 10 * 60 * 1000)) {
+                            const distanceKm = getDistanceInKm(pickupLat, pickupLng, driverPos.lat, driverPos.lng);
+                            if (distanceKm <= 5.0) {
+                                io.to(socketId).emit("created_client_request", clientRequest);
+                                notifiedCount++;
+                            }
+                        }
+                    }
+                    console.log(`📡 'created_client_request' emitida a ${notifiedCount} conductores dentro del rango de 5 KM.`);
+                } else {
+                    io.emit("created_client_request", clientRequest);
+                }
+
             } catch (error) {
                 console.error("🚨 Error grave al procesar 'new_client_request':", error);
                 io.emit("created_client_request", {
@@ -202,8 +232,34 @@ export const initializaSocket = (server: Httpserver) => {
                         payment_status: requestDb.payment_status || "PENDING",
                         payment_id: requestDb.payment_id || null
                     };
-
-                    io.emit("created_client_request", payload);
+                    const reqAny = requestDb as any;
+                    const pickupLat = Number(
+                        reqAny?.pickupLat ?? 
+                        reqAny?.pickup_lat ?? 
+                        reqAny?.pickup_position?.y ?? 
+                        data?.pickup_lat ?? 
+                        data?.pickupLat
+                    );
+                    const pickupLng = Number(
+                        reqAny?.pickupLng ?? 
+                        reqAny?.pickup_lng ?? 
+                        reqAny?.pickup_position?.x ?? 
+                        data?.pickup_lng ?? 
+                        data?.pickupLng
+                    );
+                    if (!isNaN(pickupLat) && !isNaN(pickupLng)) {
+                        for (const [socketId, driverId] of socketToDriverMap.entries()) {
+                            const driverPos = activeDriversMap.get(driverId);
+                            if (driverPos && (Date.now() - driverPos.updatedAt < 10 * 60 * 1000)) {
+                                const distanceKm = getDistanceInKm(pickupLat, pickupLng, driverPos.lat, driverPos.lng);
+                                if (distanceKm <= 5.0) {
+                                    io.to(socketId).emit("created_client_request", payload);
+                                }
+                            }
+                        }
+                    } else {
+                        io.emit("created_client_request", payload);
+                    }
                 } else {
                     io.emit("created_client_request", {
                         id_socket: socket.id,
@@ -364,3 +420,7 @@ export const getIO = (): Server => {
     }
     return io;
 };
+
+
+
+
