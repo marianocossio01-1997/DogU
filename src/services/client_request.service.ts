@@ -15,12 +15,14 @@ import type { ClientRequestStatus } from '../generated/prisma/enums.js';
 const normalizeBigInt = (obj: any) => JSON.parse(
     JSON.stringify(obj, (_, value) => typeof value === 'bigint' ? Number(value) : value)
 );
+
 const parseJsonIfNeeded = (val: any) => {
     if (typeof val === 'string') {
         try { return JSON.parse(val); } catch { return val; }
     }
     return val;
 };
+
 const formatImageUrl = (imagePath: string | null | undefined): string | null => {
     if (!imagePath || imagePath.trim() === '' || imagePath === 'null') return null;
     const cleanPath = imagePath.trim();
@@ -35,6 +37,7 @@ const formatImageUrl = (imagePath: string | null | undefined): string | null => 
     }
     return pathWithSlash;
 };
+
 const getCountryCodeFromCoordinates = async (lat: number, lng: number, apiKey: string): Promise<string | null> => {
     try {
         if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
@@ -64,6 +67,7 @@ const getCountryCodeFromCoordinates = async (lat: number, lng: number, apiKey: s
     }
     return null;
 };
+
 export const createClientRequest = async (data: CreateClientRequestInput) => {
     try {
         const requestId = await prisma.$transaction(async (tx: any) => {
@@ -104,6 +108,7 @@ export const createClientRequest = async (data: CreateClientRequestInput) => {
         throw new AppError(`Error al crear la solicitud de viaje: ${e}`, 500);
     }
 };
+
 export const getByClientRequestCreated = async (id: number) => {
     const rawData = await prisma.$queryRaw<any[]>`
         SELECT
@@ -120,12 +125,12 @@ export const getByClientRequestCreated = async (id: number) => {
             CR.status,
             CR.updated_at,
             JSON_OBJECT(
-                'x', ST_X(pickup_position),
-                'y', ST_Y(pickup_position)
+                'x', ST_Y(pickup_position),
+                'y', ST_X(pickup_position)
             ) AS pickup_position,
             JSON_OBJECT(
-                'x', ST_X(destination_position),
-                'y', ST_Y(destination_position)
+                'x', ST_Y(destination_position),
+                'y', ST_X(destination_position)
             ) AS destination_position,
             JSON_OBJECT(
                 'id', U.id,
@@ -156,6 +161,7 @@ export const getByClientRequestCreated = async (id: number) => {
     };
     return normalizeBigInt(formatted);
 };
+
 export const getByClientRequest = async (id: number) => {
     const rawData = await prisma.$queryRaw<any[]>`
         SELECT
@@ -175,12 +181,12 @@ export const getByClientRequest = async (id: number) => {
             CR.client_rating,
             CR.driver_rating,
             JSON_OBJECT(
-                'x', ST_X(pickup_position),
-                'y', ST_Y(pickup_position)
+                'x', ST_Y(pickup_position),
+                'y', ST_X(pickup_position)
             ) AS pickup_position,
             JSON_OBJECT(
-                'x', ST_X(destination_position),
-                'y', ST_Y(destination_position)
+                'x', ST_Y(destination_position),
+                'y', ST_X(destination_position)
             ) AS destination_position,
             JSON_OBJECT(
                 'id', U.id,
@@ -236,6 +242,7 @@ export const getByClientRequest = async (id: number) => {
     };
     return normalizeBigInt(formatted);
 };
+
 export const assignDriver = async (data: AssignDriverInput) => {
     const clientRequest = await prisma.clientRequests.findUnique({
         where: { id: data.id },
@@ -313,6 +320,7 @@ export const assignDriver = async (data: AssignDriverInput) => {
     }
     return updatedDriverAssigned;
 };
+
 export const updateStatus = async (data: UpdateClientRequestInput) => {
     const clientRequest = await prisma.clientRequests.findUnique({
         where: { id: data.id }
@@ -340,6 +348,7 @@ export const updateStatus = async (data: UpdateClientRequestInput) => {
     }
     return updatedClientRequest;
 };
+
 export const updateClientRating = async (data: UpdateClientRatingInput) => {
     const clientRequest = await prisma.clientRequests.findUnique({
         where: { id: data.id }
@@ -355,6 +364,7 @@ export const updateClientRating = async (data: UpdateClientRatingInput) => {
     });
     return updatedClientRequest;
 };
+
 export const updateDriverRating = async (data: UpdateDriverRatingInput) => {
     const clientRequest = await prisma.clientRequests.findUnique({
         where: { id: data.id }
@@ -370,6 +380,7 @@ export const updateDriverRating = async (data: UpdateDriverRatingInput) => {
     });
     return updatedClientRequest;
 };
+
 export const getTimeAndDistance = async (
     originLat: number,
     originLng: number,
@@ -462,6 +473,7 @@ export const getTimeAndDistance = async (
         destination_addresses: body.destination_addresses?.[0] ?? 'Destino',
     };
 };
+
 export const getNearbyClientRequests = async (driverLat: number, driverLng: number) => {
     try {
         const rawData = await prisma.$queryRaw<any[]>`
@@ -479,12 +491,12 @@ export const getNearbyClientRequests = async (driverLat: number, driverLng: numb
                 CR.status,
                 CR.updated_at,
                 JSON_OBJECT(
-                    'x', ST_X(pickup_position),
-                    'y', ST_Y(pickup_position)
+                    'x', ST_Y(pickup_position),
+                    'y', ST_X(pickup_position)
                 ) AS pickup_position,
                 JSON_OBJECT(
-                    'x', ST_X(destination_position),
-                    'y', ST_Y(destination_position)
+                    'x', ST_Y(destination_position),
+                    'y', ST_X(destination_position)
                 ) AS destination_position,
                 ST_Distance_Sphere(pickup_position, ST_GeomFromText(CONCAT('POINT(', ${driverLng}, ' ', ${driverLat}, ')'), 4326)) AS distance,
                 timestampdiff(MINUTE, CR.updated_at, NOW()) AS time_difference,
@@ -518,7 +530,7 @@ export const getNearbyClientRequests = async (driverLat: number, driverLng: numb
         const url = "https://maps.googleapis.com/maps/api/distancematrix/json";
         let elements: any[] = [];
         try {
-            const destinations = data.map((item: any) => `${item.pickup_position.y},${item.pickup_position.x}`).join("|");
+            const destinations = data.map((item: any) => `${item.pickup_position.x},${item.pickup_position.y}`).join("|");
             const response = await axios.get(url, {
                 params: {
                     origins: `${driverLat},${driverLng}`,
@@ -555,6 +567,7 @@ export const getNearbyClientRequests = async (driverLat: number, driverLng: numb
         throw new AppError(`Error interno al obtener solicitudes cercanas: ${message}`, 500);
     }
 };
+
 export const getByClientAssigned = async (id_client: number) => {
     const rawData = await prisma.$queryRaw<any[]>`
         SELECT
@@ -574,12 +587,12 @@ export const getByClientAssigned = async (id_client: number) => {
             CR.client_rating,
             CR.driver_rating,
             JSON_OBJECT(
-                'x', ST_X(pickup_position),
-                'y', ST_Y(pickup_position)
+                'x', ST_Y(pickup_position),
+                'y', ST_X(pickup_position)
             ) AS pickup_position,
             JSON_OBJECT(
-                'x', ST_X(destination_position),
-                'y', ST_Y(destination_position)
+                'x', ST_Y(destination_position),
+                'y', ST_X(destination_position)
             ) AS destination_position,
             JSON_OBJECT(
                 'id', U.id,
@@ -636,6 +649,7 @@ export const getByClientAssigned = async (id_client: number) => {
     });
     return normalizeBigInt(formatted);
 };
+
 export const getByDriverAssigned = async (id_driver_assigned: number) => {
     const rawData = await prisma.$queryRaw<any[]>`
         SELECT
@@ -655,12 +669,12 @@ export const getByDriverAssigned = async (id_driver_assigned: number) => {
             CR.client_rating,
             CR.driver_rating,
             JSON_OBJECT(
-                'x', ST_X(pickup_position),
-                'y', ST_Y(pickup_position)
+                'x', ST_Y(pickup_position),
+                'y', ST_X(pickup_position)
             ) AS pickup_position,
             JSON_OBJECT(
-                'x', ST_X(destination_position),
-                'y', ST_Y(destination_position)
+                'x', ST_Y(destination_position),
+                'y', ST_X(destination_position)
             ) AS destination_position,
             JSON_OBJECT(
                 'id', U.id,

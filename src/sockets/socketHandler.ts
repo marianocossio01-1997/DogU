@@ -6,6 +6,7 @@ import prisma from "../database/prismaClient.js";
 let io: Server;
 const activeDriversMap = new Map<number, { id: number; lat: number; lng: number; updatedAt: number }>();
 const socketToDriverMap = new Map<string, number>();
+
 const getDistanceInKm = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
     const R = 6371; 
     const dLat = (lat2 - lat1) * (Math.PI / 180);
@@ -18,6 +19,7 @@ const getDistanceInKm = (lat1: number, lon1: number, lat2: number, lon2: number)
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
 };
+
 const formatImageUrl = (imagePath: string | null | undefined): string | null => {
     if (!imagePath || imagePath.trim() === '' || imagePath === 'null') return null;
     const cleanPath = imagePath.trim();
@@ -29,6 +31,7 @@ const formatImageUrl = (imagePath: string | null | undefined): string | null => 
     const pathWithSlash = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
     return `http://${host}:${port}${pathWithSlash}`;
 };
+
 export const initializaSocket = (server: Httpserver) => {
     io = new Server(server, {
         cors: {
@@ -36,6 +39,7 @@ export const initializaSocket = (server: Httpserver) => {
             methods: ["GET", "POST"]
         }
     });
+
     io.on("connection", (socket: Socket) => {
         console.log("🟢 Cliente/Conductor conectado a Socket.io:", socket.id);
 
@@ -43,16 +47,19 @@ export const initializaSocket = (server: Httpserver) => {
             console.log("Mensaje recibido:", data);
             io.emit("new_message", "Saludos desde el servidor");
         });
+
         socket.on("send_message", async (data: any) => {
             try {
                 const idClientRequest = data?.id_client_request || data?.idClientRequest;
                 const idSender = data?.id_sender || data?.idSender;
                 const idReceiver = data?.id_receiver || data?.idReceiver;
                 const message = data?.message;
+
                 if (!idClientRequest || !idSender || !idReceiver || !message) {
                     console.warn("⚠️ Evento 'send_message' incompleto recibido:", data);
                     return;
                 }
+
                 const payload = {
                     id_client_request: Number(idClientRequest),
                     id_sender: Number(idSender),
@@ -60,6 +67,7 @@ export const initializaSocket = (server: Httpserver) => {
                     message: message,
                     created_at: new Date().toISOString()
                 };
+
                 const channel = `message_received/${idClientRequest}`;
                 console.log(`💬 Retransmitiendo mensaje a '${channel}':`, message);
                 io.emit(channel, payload);
@@ -76,10 +84,12 @@ export const initializaSocket = (server: Httpserver) => {
                 console.error("🚨 Error al procesar y guardar 'send_message':", error);
             }
         });
+
         socket.on("change_driver_position", (data: any) => {
             const driverId = Number(data?.id || data?.id_driver);
             const lat = Number(data?.lat);
             const lng = Number(data?.lng);
+
             if (driverId && !isNaN(lat) && !isNaN(lng)) {
                 socketToDriverMap.set(socket.id, driverId);
                 activeDriversMap.set(driverId, {
@@ -88,6 +98,7 @@ export const initializaSocket = (server: Httpserver) => {
                     lng: lng,
                     updatedAt: Date.now()
                 });
+
                 const position = {
                     "id_socket": socket.id,
                     "id": driverId,
@@ -98,35 +109,42 @@ export const initializaSocket = (server: Httpserver) => {
                 io.emit("new_driver_position", position);
             }
         });
+
         socket.on("get_nearby_drivers", async (data: any) => {
             try {
                 const driversFromMemory = Array.from(activeDriversMap.values()).filter(
                     d => Date.now() - d.updatedAt < 10 * 60 * 1000 
                 );
+
                 if (driversFromMemory.length > 0) {
                     socket.emit("nearby_drivers", driversFromMemory);
                     return;
                 }
+
                 const dbDrivers = await prisma.driverPosition.findMany({
                     take: 15
                 });
+
                 const formattedDrivers = dbDrivers.map((d: any) => ({
                     id: d.id_driver || d.id,
                     id_driver: d.id_driver || d.id,
                     lat: Number(d.lat),
                     lng: Number(d.lng)
                 }));
+
                 socket.emit("nearby_drivers", formattedDrivers);
             } catch (error) {
                 console.error("🚨 Error al procesar 'get_nearby_drivers':", error);
                 socket.emit("nearby_drivers", []);
             }
-        })
+        });
+
         socket.on("new_client_request", async (data: any) => {
             try {
                 const idRequest = data?.id_client_request || data?.id;
                 const idClient = data?.id_client || data?.client?.id || data?.idClient;
                 let clientObj = data?.client || {};
+
                 if (idClient) {
                     try {
                         const userDb = await prisma.user.findUnique({
@@ -149,12 +167,19 @@ export const initializaSocket = (server: Httpserver) => {
                         console.warn("⚠️ No se pudo consultar prisma.user directamente:", dbError);
                     }
                 }
+
                 const rawImage = clientObj?.image || data?.client_image || data?.image || "";
                 const finalImageUrl = formatImageUrl(rawImage);
                 const updatedClient = {
                     ...clientObj,
                     image: finalImageUrl
                 };
+
+                const pickupLat = Number(data?.pickupLat ?? data?.pickup_lat ?? data?.pickup_position?.x ?? 0.0);
+                const pickupLng = Number(data?.pickupLng ?? data?.pickup_lng ?? data?.pickup_position?.y ?? 0.0);
+                const destLat = Number(data?.destinationLat ?? data?.destination_lat ?? data?.destination_position?.x ?? 0.0);
+                const destLng = Number(data?.destinationLng ?? data?.destination_lng ?? data?.destination_position?.y ?? 0.0);
+
                 const clientRequest = {
                     ...data,
                     "id": Number(idRequest),
@@ -164,11 +189,16 @@ export const initializaSocket = (server: Httpserver) => {
                     "client_image": finalImageUrl || "",
                     "payment_method": data?.payment_method || "CASH",
                     "payment_status": data?.payment_status || "PENDING",
-                    "payment_id": data?.payment_id || null
+                    "payment_id": data?.payment_id || null,
+                    "pickupLat": pickupLat,
+                    "pickupLng": pickupLng,
+                    "destinationLat": destLat,
+                    "destinationLng": destLng,
+                    "pickup_position": data?.pickup_position || { x: pickupLat, y: pickupLng },
+                    "destination_position": data?.destination_position || { x: destLat, y: destLng }
                 };
-                const pickupLat = Number(data?.pickup_lat || data?.pickupLat || data?.lat);
-                const pickupLng = Number(data?.pickup_lng || data?.pickupLng || data?.lng);
-                if (!isNaN(pickupLat) && !isNaN(pickupLng)) {
+
+                if (!isNaN(pickupLat) && !isNaN(pickupLng) && pickupLat !== 0.0 && pickupLng !== 0.0) {
                     let notifiedCount = 0;
                     for (const [socketId, driverId] of socketToDriverMap.entries()) {
                         const driverPos = activeDriversMap.get(driverId);
@@ -194,6 +224,7 @@ export const initializaSocket = (server: Httpserver) => {
                 });
             }
         });
+
         socket.on("resend_client_request", async (data: any) => {
             try {
                 const idClientRequest = Number(data?.id_client_request || data?.idClientRequest || data?.id);
@@ -216,8 +247,26 @@ export const initializaSocket = (server: Httpserver) => {
                         }
                     }
                 });
+
                 if (requestDb) {
                     const finalImageUrl = formatImageUrl(requestDb.client?.image);
+                    const reqAny = requestDb as any;
+
+                    const pickupLat = Number(
+                        reqAny?.pickupLat ?? 
+                        reqAny?.pickup_lat ?? 
+                        reqAny?.pickup_position?.x ?? 
+                        data?.pickup_lat ?? 
+                        data?.pickupLat
+                    );
+                    const pickupLng = Number(
+                        reqAny?.pickupLng ?? 
+                        reqAny?.pickup_lng ?? 
+                        reqAny?.pickup_position?.y ?? 
+                        data?.pickup_lng ?? 
+                        data?.pickupLng
+                    );
+
                     const payload = {
                         ...requestDb,
                         id: requestDb.id,
@@ -230,24 +279,13 @@ export const initializaSocket = (server: Httpserver) => {
                         client_image: finalImageUrl || "",
                         payment_method: requestDb.payment_method || "CASH",
                         payment_status: requestDb.payment_status || "PENDING",
-                        payment_id: requestDb.payment_id || null
+                        payment_id: requestDb.payment_id || null,
+                        pickupLat: pickupLat,
+                        pickupLng: pickupLng,
+                        pickup_position: reqAny?.pickup_position || { x: pickupLat, y: pickupLng }
                     };
-                    const reqAny = requestDb as any;
-                    const pickupLat = Number(
-                        reqAny?.pickupLat ?? 
-                        reqAny?.pickup_lat ?? 
-                        reqAny?.pickup_position?.y ?? 
-                        data?.pickup_lat ?? 
-                        data?.pickupLat
-                    );
-                    const pickupLng = Number(
-                        reqAny?.pickupLng ?? 
-                        reqAny?.pickup_lng ?? 
-                        reqAny?.pickup_position?.x ?? 
-                        data?.pickup_lng ?? 
-                        data?.pickupLng
-                    );
-                    if (!isNaN(pickupLat) && !isNaN(pickupLng)) {
+
+                    if (!isNaN(pickupLat) && !isNaN(pickupLng) && pickupLat !== 0.0) {
                         for (const [socketId, driverId] of socketToDriverMap.entries()) {
                             const driverPos = activeDriversMap.get(driverId);
                             if (driverPos && (Date.now() - driverPos.updatedAt < 10 * 60 * 1000)) {
@@ -272,6 +310,7 @@ export const initializaSocket = (server: Httpserver) => {
                 console.error("🚨 Error al procesar 'resend_client_request':", error);
             }
         });
+
         socket.on("cancel_client_request", async (data: any) => {
             try {
                 const idClientRequest = Number(data?.id_client_request || data?.idClientRequest || data?.id);
@@ -293,6 +332,7 @@ export const initializaSocket = (server: Httpserver) => {
                 console.error("🚨 Error al procesar 'cancel_client_request':", error);
             }
         });
+
         socket.on("new_driver_offer", async (data: any) => {
             try {
                 if (!data?.id_client_request) {
@@ -302,6 +342,7 @@ export const initializaSocket = (server: Httpserver) => {
                 const idClientRequest = String(data.id_client_request).trim();
                 const idDriver = data?.id_driver || data?.idDriver || data?.driver?.id;
                 let driverObj = data?.driver || {};
+
                 if (idDriver) {
                     try {
                         const driverDb = await prisma.user.findUnique({
@@ -324,12 +365,14 @@ export const initializaSocket = (server: Httpserver) => {
                         console.warn("⚠️ No se pudo consultar prisma.user para el conductor:", dbError);
                     }
                 }
+
                 const rawDriverImage = driverObj?.image || data?.driver_image || data?.image || "";
                 const finalDriverImageUrl = formatImageUrl(rawDriverImage);
                 const updatedDriver = {
                     ...driverObj,
                     image: finalDriverImageUrl
                 };
+
                 const offerPayload = {
                     ...data,
                     "id_socket": socket.id,
@@ -337,6 +380,7 @@ export const initializaSocket = (server: Httpserver) => {
                     "driver": updatedDriver,
                     "driver_image": finalDriverImageUrl || ""
                 };
+
                 const targetChannel = `created_driver_offer/${idClientRequest}`;
                 console.log(`📡 [SOCKET] Retransmitiendo oferta a '${targetChannel}'`);
                 io.emit(targetChannel, offerPayload);
@@ -350,19 +394,31 @@ export const initializaSocket = (server: Httpserver) => {
                 });
             }
         });
+
         socket.on("new_driver_assigned", (data: any) => {
             const idDriver = data?.id_driver;
+            const idClientRequest = data?.id_client_request;
+
             const clientRequest = {
                 "id_socket": socket.id,
-                "id_client_request": data?.id_client_request,
+                "id_client_request": idClientRequest,
                 "id_driver": idDriver,
                 "payment_method": data?.payment_method || "CASH",
                 "payment_status": data?.payment_status || "PENDING",
                 "payment_id": data?.payment_id || null
             };
+
             console.log(`🚕 Nuevo conductor asignado (${idDriver}) para viaje:`, clientRequest);
             io.emit(`driver_assigned/${idDriver}`, clientRequest);
+
+            if (idClientRequest) {
+                io.emit('trip_assigned_to_other', {
+                    id_client_request: Number(idClientRequest),
+                    id_driver_assigned: Number(idDriver)
+                });
+            }
         });
+
         socket.on("trip_change_driver_position", (data: any) => {
             const idClient = data?.id_client;
             const driverPosition = {
@@ -372,6 +428,7 @@ export const initializaSocket = (server: Httpserver) => {
             };
             io.emit(`trip_new_driver_position/${idClient}`, driverPosition);
         });
+
         socket.on("update_status_trip", (data: any) => {
             const idClientRequest = data?.id_client_request;
             const clientRequest = {
@@ -384,6 +441,7 @@ export const initializaSocket = (server: Httpserver) => {
             };
             io.emit(`new_status_trip/${idClientRequest}`, clientRequest);
         });
+
         socket.on("disconnect_driver", (data: any) => {
             const driverId = Number(data?.id || data?.id_driver);
             if (driverId) {
@@ -395,6 +453,7 @@ export const initializaSocket = (server: Httpserver) => {
                 });
             }
         });
+
         socket.on("disconnect", () => {
             console.log("🔴 Cliente/Conductor desconectado:", socket.id);
             const driverId = socketToDriverMap.get(socket.id);
@@ -414,13 +473,10 @@ export const initializaSocket = (server: Httpserver) => {
         });
     });
 };
+
 export const getIO = (): Server => { 
     if (!io) {
         throw new AppError("Socket.io no ha sido inicializado", 500);
     }
     return io;
 };
-
-
-
-
