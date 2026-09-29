@@ -4,7 +4,7 @@ import { AppError } from '../utils/AppError.js';
 
 export const getOrCreateWallet = async (id_driver: number) => {
     try {
-        let wallet = await prisma.driverWallet.findUnique({
+        let wallet = await prisma.driverWallet.findFirst({
             where: { id_driver },
             include: {
                 transactions: {
@@ -33,7 +33,7 @@ export const getOrCreateWallet = async (id_driver: number) => {
 export const getTransactions = async (id_driver: number) => {
     try {
         const wallet = await getOrCreateWallet(id_driver);
-        const walletId = wallet.id_driver;
+        const walletId = (wallet as any).id ?? wallet.id_driver;
         const transactions = await prisma.walletTransaction.findMany({
             where: { id_driver_wallet: walletId },
             orderBy: { created_at: 'desc' },
@@ -64,18 +64,15 @@ export const processTripPayment = async (data: {
         const commissionRate = 0.20;
         const platformFee = total_fare * commissionRate; 
         const driverEarnings = total_fare * (1 - commissionRate); 
-
         const wallet = await getOrCreateWallet(id_driver);
-        const walletId = wallet.id_driver;
-
+        const walletId = (wallet as any).id ?? wallet.id_driver;
         return await prisma.$transaction(async (tx) => {
             const existingTx = await tx.walletTransaction.findFirst({
                 where: { id_client_request }
             });
-
             if (existingTx) {
                 console.log(`⚠️ El viaje #${id_client_request} ya fue procesado previamente en la billetera.`);
-                const currentWallet = await tx.driverWallet.findUnique({
+                const currentWallet = await tx.driverWallet.findFirst({
                     where: { id_driver }
                 });
                 return {
@@ -107,7 +104,7 @@ export const processTripPayment = async (data: {
                 }
             });
             const updatedWallet = await tx.driverWallet.update({
-                where: { id_driver },
+                where: { id_driver: id_driver },
                 data: {
                     balance: {
                         increment: amountTransaction
@@ -144,14 +141,13 @@ export const requestWithdrawal = async (data: {
     try {
         const { id_driver, amount, id_card, notes } = data;
         const wallet = await getOrCreateWallet(id_driver);
-        const walletId = wallet.id_driver;
-
+        const walletId = (wallet as any).id ?? wallet.id_driver;
         if (Number(wallet.balance) < amount) {
             throw new AppError('Saldo insuficiente para realizar el retiro', 400);
         }
         return await prisma.$transaction(async (tx) => {
             const updatedWallet = await tx.driverWallet.update({
-                where: { id_driver },
+                where: { id_driver: id_driver },
                 data: {
                     balance: {
                         decrement: amount
@@ -196,10 +192,11 @@ export const addTransaction = async (data: {
     try {
         const { id_driver, id_client_request, amount, type, description } = data;
         const wallet = await getOrCreateWallet(id_driver);
-        const walletId = wallet.id_driver;
+        const walletId = (wallet as any).id ?? wallet.id_driver;
+
         return await prisma.$transaction(async (tx) => {
             const updatedWallet = await tx.driverWallet.update({
-                where: { id_driver },
+                where: { id_driver: id_driver },
                 data: {
                     balance: {
                         increment: amount
