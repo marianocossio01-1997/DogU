@@ -12,17 +12,16 @@ import type {
 } from '../validators/client_request.validator.js';
 import type { ClientRequestStatus } from '../generated/prisma/enums.js';
 
+
 const normalizeBigInt = (obj: any) => JSON.parse(
     JSON.stringify(obj, (_, value) => typeof value === 'bigint' ? Number(value) : value)
 );
-
 const parseJsonIfNeeded = (val: any) => {
     if (typeof val === 'string') {
         try { return JSON.parse(val); } catch { return val; }
     }
     return val;
 };
-
 const formatImageUrl = (imagePath: string | null | undefined): string | null => {
     if (!imagePath || imagePath.trim() === '' || imagePath === 'null') return null;
     const cleanPath = imagePath.trim();
@@ -37,7 +36,6 @@ const formatImageUrl = (imagePath: string | null | undefined): string | null => 
     }
     return pathWithSlash;
 };
-
 const getCountryCodeFromCoordinates = async (lat: number, lng: number, apiKey: string): Promise<string | null> => {
     try {
         if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
@@ -63,11 +61,10 @@ const getCountryCodeFromCoordinates = async (lat: number, lng: number, apiKey: s
             console.error("🚨 Google Reverse Geocoding falló con status:", response.data?.status, "| Detalle:", response.data?.error_message || 'Sin mensaje de error');
         }
     } catch (error: any) {
-        console.error("⚠️ Error llamando a la API de Reverse Geocoding:", error?.message || error);
+        console.error("⚠️️ Error llamando a la API de Reverse Geocoding:", error?.message || error);
     }
     return null;
 };
-
 export const createClientRequest = async (data: CreateClientRequestInput) => {
     try {
         const requestId = await prisma.$transaction(async (tx: any) => {
@@ -108,7 +105,6 @@ export const createClientRequest = async (data: CreateClientRequestInput) => {
         throw new AppError(`Error al crear la solicitud de viaje: ${e}`, 500);
     }
 };
-
 export const getByClientRequestCreated = async (id: number) => {
     const rawData = await prisma.$queryRaw<any[]>`
         SELECT
@@ -161,7 +157,6 @@ export const getByClientRequestCreated = async (id: number) => {
     };
     return normalizeBigInt(formatted);
 };
-
 export const getByClientRequest = async (id: number) => {
     const rawData = await prisma.$queryRaw<any[]>`
         SELECT
@@ -242,7 +237,6 @@ export const getByClientRequest = async (id: number) => {
     };
     return normalizeBigInt(formatted);
 };
-
 export const assignDriver = async (data: AssignDriverInput) => {
     const clientRequest = await prisma.clientRequests.findUnique({
         where: { id: data.id },
@@ -276,7 +270,6 @@ export const assignDriver = async (data: AssignDriverInput) => {
         if (!userCard) {
             throw new AppError('El cliente no tiene una tarjeta seleccionada o configurada para este pago.', 400);
         }
-
         try {
             const paymentResult = await processCardPayment({
                 token: userCard.card_token,
@@ -320,7 +313,6 @@ export const assignDriver = async (data: AssignDriverInput) => {
     }
     return updatedDriverAssigned;
 };
-
 export const updateStatus = async (data: UpdateClientRequestInput) => {
     const clientRequest = await prisma.clientRequests.findUnique({
         where: { id: data.id }
@@ -348,7 +340,6 @@ export const updateStatus = async (data: UpdateClientRequestInput) => {
     }
     return updatedClientRequest;
 };
-
 export const updateClientRating = async (data: UpdateClientRatingInput) => {
     const clientRequest = await prisma.clientRequests.findUnique({
         where: { id: data.id }
@@ -364,7 +355,6 @@ export const updateClientRating = async (data: UpdateClientRatingInput) => {
     });
     return updatedClientRequest;
 };
-
 export const updateDriverRating = async (data: UpdateDriverRatingInput) => {
     const clientRequest = await prisma.clientRequests.findUnique({
         where: { id: data.id }
@@ -380,7 +370,6 @@ export const updateDriverRating = async (data: UpdateDriverRatingInput) => {
     });
     return updatedClientRequest;
 };
-
 export const getTimeAndDistance = async (
     originLat: number,
     originLng: number,
@@ -473,7 +462,6 @@ export const getTimeAndDistance = async (
         destination_addresses: body.destination_addresses?.[0] ?? 'Destino',
     };
 };
-
 export const getNearbyClientRequests = async (driverLat: number, driverLng: number) => {
     try {
         const rawData = await prisma.$queryRaw<any[]>`
@@ -567,7 +555,6 @@ export const getNearbyClientRequests = async (driverLat: number, driverLng: numb
         throw new AppError(`Error interno al obtener solicitudes cercanas: ${message}`, 500);
     }
 };
-
 export const getByClientAssigned = async (id_client: number) => {
     const rawData = await prisma.$queryRaw<any[]>`
         SELECT
@@ -649,7 +636,6 @@ export const getByClientAssigned = async (id_client: number) => {
     });
     return normalizeBigInt(formatted);
 };
-
 export const getByDriverAssigned = async (id_driver_assigned: number) => {
     const rawData = await prisma.$queryRaw<any[]>`
         SELECT
