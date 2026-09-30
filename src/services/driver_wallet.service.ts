@@ -21,7 +21,7 @@ export const getOrCreateWallet = async (id_driver: number) => {
                 where: {
                     OR: [
                         { id_driver: id_driver },
-                        { id: id_driver }
+                        { driver: { id: id_driver } }
                     ]
                 }
             });
@@ -38,6 +38,25 @@ export const getOrCreateWallet = async (id_driver: number) => {
             }
         }
         if (!wallet) {
+            const userWithWallet = await prisma.user.findUnique({
+                where: { id: id_driver },
+                include: {
+                    driverWallet: {
+                        include: {
+                            transactions: {
+                                orderBy: { created_at: 'desc' },
+                                take: 20
+                            }
+                        }
+                    }
+                }
+            });
+
+            if (userWithWallet?.driverWallet) {
+                wallet = userWithWallet.driverWallet;
+            }
+        }
+        if (!wallet) {
             console.log(`⚠️ Creando nueva billetera inicial para id_driver: ${id_driver}`);
             wallet = await prisma.driverWallet.create({
                 data: {
@@ -49,6 +68,7 @@ export const getOrCreateWallet = async (id_driver: number) => {
                 }
             });
         }
+
         return wallet;
     } catch (e: any) {
         if (e instanceof AppError) throw e;
@@ -58,7 +78,7 @@ export const getOrCreateWallet = async (id_driver: number) => {
 export const getTransactions = async (id_driver: number) => {
     try {
         const wallet = await getOrCreateWallet(id_driver);
-        const walletId = (wallet as any).id ?? wallet.id_driver;
+        const walletId = wallet.id_driver;
         const transactions = await prisma.walletTransaction.findMany({
             where: { id_driver_wallet: walletId },
             orderBy: { created_at: 'desc' },
@@ -89,14 +109,13 @@ export const processTripPayment = async (data: {
         const commissionRate = 0.20;
         const platformFee = total_fare * commissionRate; 
         const driverEarnings = total_fare * (1 - commissionRate); 
-
         const wallet = await getOrCreateWallet(id_driver);
         const targetDriverId = wallet.id_driver;
-        const walletId = (wallet as any).id ?? wallet.id_driver;
         return await prisma.$transaction(async (tx) => {
             const existingTx = await tx.walletTransaction.findFirst({
                 where: { id_client_request }
             });
+
             if (existingTx) {
                 console.log(`⚠️ El viaje #${id_client_request} ya fue procesado previamente en la billetera.`);
                 const currentWallet = await tx.driverWallet.findFirst({
@@ -140,7 +159,7 @@ export const processTripPayment = async (data: {
             });
             const newTransaction = await tx.walletTransaction.create({
                 data: {
-                    id_driver_wallet: walletId,
+                    id_driver_wallet: targetDriverId,
                     id_client_request: id_client_request,
                     amount: amountTransaction,
                     type: type,
@@ -169,7 +188,6 @@ export const requestWithdrawal = async (data: {
         const { id_driver, amount, id_card, notes } = data;
         const wallet = await getOrCreateWallet(id_driver);
         const targetDriverId = wallet.id_driver;
-        const walletId = (wallet as any).id ?? wallet.id_driver;
         if (Number(wallet.balance) < amount) {
             throw new AppError('Saldo insuficiente para realizar el retiro', 400);
         }
@@ -184,7 +202,7 @@ export const requestWithdrawal = async (data: {
             });
             const withdrawal = await tx.withdrawalRequest.create({
                 data: {
-                    id_driver_wallet: walletId,
+                    id_driver_wallet: targetDriverId,
                     id_card: id_card ?? null,
                     amount: amount,
                     notes: notes ?? null,
@@ -193,7 +211,7 @@ export const requestWithdrawal = async (data: {
             });
             const transaction = await tx.walletTransaction.create({
                 data: {
-                    id_driver_wallet: walletId,
+                    id_driver_wallet: targetDriverId,
                     amount: -amount,
                     type: TransactionType.WITHDRAWAL,
                     description: `Solicitud de retiro de ganancias $${amount}`
@@ -213,9 +231,8 @@ export const requestWithdrawal = async (data: {
 export const getWithdrawalHistory = async (id_driver: number) => {
     try {
         const wallet = await getOrCreateWallet(id_driver);
-        const walletId = (wallet as any).id ?? wallet.id_driver;
         return await prisma.withdrawalRequest.findMany({
-            where: { id_driver_wallet: walletId },
+            where: { id_driver_wallet: wallet.id_driver },
             orderBy: { created_at: 'desc' }
         });
     } catch (e: any) {
@@ -234,7 +251,7 @@ export const addTransaction = async (data: {
         const { id_driver, id_client_request, amount, type, description } = data;
         const wallet = await getOrCreateWallet(id_driver);
         const targetDriverId = wallet.id_driver;
-        const walletId = (wallet as any).id ?? wallet.id_driver;
+
         return await prisma.$transaction(async (tx) => {
             const updatedWallet = await tx.driverWallet.update({
                 where: { id_driver: targetDriverId },
@@ -246,14 +263,13 @@ export const addTransaction = async (data: {
             });
             const newTransaction = await tx.walletTransaction.create({
                 data: {
-                    id_driver_wallet: walletId,
+                    id_driver_wallet: targetDriverId,
                     id_client_request: id_client_request ?? null,
                     amount,
                     type,
                     description
                 }
             });
-
             return { wallet: updatedWallet, transaction: newTransaction };
         });
     } catch (e: any) {
