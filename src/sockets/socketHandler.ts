@@ -48,7 +48,6 @@ export const initializaSocket = (server: Httpserver) => {
                 const idSender = data?.id_sender || data?.idSender;
                 const idReceiver = data?.id_receiver || data?.idReceiver;
                 const message = data?.message;
-
                 if (!idClientRequest || !idSender || !idReceiver || !message) {
                     console.warn("⚠️ Evento 'send_message' incompleto recibido:", data);
                     return;
@@ -63,7 +62,6 @@ export const initializaSocket = (server: Httpserver) => {
                 const channel = `message_received/${idClientRequest}`;
                 console.log(`💬 Retransmitiendo mensaje a '${channel}':`, message);
                 io.emit(channel, payload);
-
                 await prisma.chatMessage.create({
                     data: {
                         id_client_request: Number(idClientRequest),
@@ -147,7 +145,7 @@ export const initializaSocket = (server: Httpserver) => {
                             };
                         }
                     } catch (dbError) {
-                        console.warn("⚠️ No se pudo consultar prisma.user directamente:", dbError);
+                        console.warn("⚠️️ No se pudo consultar prisma.user directamente:", dbError);
                     }
                 }
                 const rawImage = clientObj?.image || data?.client_image || data?.image || "";
@@ -392,17 +390,79 @@ export const initializaSocket = (server: Httpserver) => {
             };
             io.emit(`trip_new_driver_position/${idClient}`, driverPosition);
         });
-        socket.on("update_status_trip", (data: any) => {
-            const idClientRequest = data?.id_client_request;
-            const clientRequest = {
-                "id_socket": socket.id,
-                "id_client_request": idClientRequest,
-                "status": data?.status,
-                "payment_method": data?.payment_method,
-                "payment_status": data?.payment_status,
-                "payment_id": data?.payment_id || null
-            };
-            io.emit(`new_status_trip/${idClientRequest}`, clientRequest);
+        socket.on("update_status_trip", async (data: any) => {
+            try {
+                const idClientRequest = Number(data?.id_client_request || data?.idClientRequest);
+                const status = data?.status;
+                const idDriver = Number(data?.id_driver || data?.idDriver);
+
+                console.log(`📌 Cambiando estado de viaje #${idClientRequest} a '${status}' para conductor #${idDriver}`);
+
+                if (idClientRequest && status) {
+                    await prisma.clientRequests.update({
+                        where: { id: idClientRequest },
+                        data: { 
+                            status: status,
+                            ...(data?.payment_status ? { payment_status: data.payment_status } : {})
+                        }
+                    });
+                }
+                if ((status === "FINISHED" || status === "COMPLETED") && idDriver) {
+                    const trip = await prisma.clientRequests.findUnique({
+                        where: { id: idClientRequest }
+                    });
+                    const tripAny = trip as any;
+                    const totalFare = Number(
+                        tripAny?.fare || 
+                        tripAny?.fare_offered || 
+                        tripAny?.price || 
+                        data?.fare || 
+                        data?.total_fare || 
+                        0
+                    );
+                    const commissionRate = 0.20; 
+                    const commissionAmount = totalFare * commissionRate;
+                    if (commissionAmount > 0) {
+                        const wallet: any = await prisma.driverWallet.upsert({
+                            where: { id_driver: idDriver },
+                            update: {
+                                balance: {
+                                    decrement: commissionAmount 
+                                }
+                            },
+                            create: {
+                                id_driver: idDriver,
+                                balance: -commissionAmount
+                            }
+                        });
+                        const walletId = Number(wallet?.id || wallet?.id_driver_wallet || wallet?.id_wallet);
+                        await prisma.walletTransaction.create({
+                            data: {
+                                id_driver_wallet: walletId,
+                                id_client_request: idClientRequest,
+                                amount: -commissionAmount,
+                                type: 'TRIP_COMMISSION' as any,
+                                description: `Comisión (20%) por viaje #${idClientRequest}`
+                            }
+                        });
+                        console.log(`💰 [BD ACTUALIZADA] Conductor #${idDriver} - Nueva comisión cargada: -$${commissionAmount}. Saldo actual: $${wallet.balance}`);
+                        io.emit(`wallet_updated/${idDriver}`, {
+                            new_balance: Number(wallet.balance)
+                        });
+                    }
+                }
+                const clientRequest = {
+                    "id_socket": socket.id,
+                    "id_client_request": idClientRequest,
+                    "status": status,
+                    "payment_method": data?.payment_method,
+                    "payment_status": data?.payment_status,
+                    "payment_id": data?.payment_id || null
+                };
+                io.emit(`new_status_trip/${idClientRequest}`, clientRequest);
+            } catch (error) {
+                console.error("🚨 Error grave al actualizar status de viaje o comisión en BD:", error);
+            }
         });
         socket.on("disconnect_driver", (data: any) => {
             const driverId = Number(data?.id || data?.id_driver);

@@ -6,7 +6,6 @@ export const getWalletByDriver = async (req: Request, res: Response, next: NextF
     try {
         const rawId = req.params.id_driver ?? req.params.idDriver ?? req.params.id;
         const id_driver = Number(rawId);
-
         if (isNaN(id_driver) || id_driver <= 0) {
             return res.status(400).json({
                 success: false,
