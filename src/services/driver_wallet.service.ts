@@ -4,6 +4,9 @@ import { AppError } from '../utils/AppError.js';
 
 export const getOrCreateWallet = async (id_driver: number) => {
     try {
+        if (!id_driver || isNaN(id_driver)) {
+            throw new AppError('El ID del conductor ingresado no es válido.', 400);
+        }
         let wallet = await prisma.driverWallet.findFirst({
             where: { id_driver },
             include: {
@@ -22,7 +25,7 @@ export const getOrCreateWallet = async (id_driver: number) => {
                     ]
                 }
             });
-            if (carInfo) {
+            if (carInfo && carInfo.id_driver) {
                 wallet = await prisma.driverWallet.findFirst({
                     where: { id_driver: carInfo.id_driver },
                     include: {
@@ -35,6 +38,7 @@ export const getOrCreateWallet = async (id_driver: number) => {
             }
         }
         if (!wallet) {
+            console.log(`⚠️ Creando nueva billetera inicial para id_driver: ${id_driver}`);
             wallet = await prisma.driverWallet.create({
                 data: {
                     id_driver,
@@ -85,6 +89,7 @@ export const processTripPayment = async (data: {
         const commissionRate = 0.20;
         const platformFee = total_fare * commissionRate; 
         const driverEarnings = total_fare * (1 - commissionRate); 
+
         const wallet = await getOrCreateWallet(id_driver);
         const targetDriverId = wallet.id_driver;
         const walletId = (wallet as any).id ?? wallet.id_driver;
@@ -114,7 +119,7 @@ export const processTripPayment = async (data: {
             } else {
                 amountTransaction = driverEarnings;
                 type = TransactionType.TRIP_EARNING_CREDIT;
-                description = `Acreditación del 80% por viaje #${id_client_request} (Pago con tarjeta)`;
+                description = `Acreditación del 80% por viaje #${id_client_request} (Pago digital)`;
             }
             await tx.clientRequests.update({
                 where: { id: id_client_request },
@@ -205,6 +210,19 @@ export const requestWithdrawal = async (data: {
         throw new AppError(`Error al procesar la solicitud de retiro: ${e.message || e}`, 500);
     }
 };
+export const getWithdrawalHistory = async (id_driver: number) => {
+    try {
+        const wallet = await getOrCreateWallet(id_driver);
+        const walletId = (wallet as any).id ?? wallet.id_driver;
+        return await prisma.withdrawalRequest.findMany({
+            where: { id_driver_wallet: walletId },
+            orderBy: { created_at: 'desc' }
+        });
+    } catch (e: any) {
+        if (e instanceof AppError) throw e;
+        throw new AppError(`Error al obtener el historial de retiros: ${e.message || e}`, 500);
+    }
+};
 export const addTransaction = async (data: {
     id_driver: number;
     id_client_request?: number;
@@ -235,6 +253,7 @@ export const addTransaction = async (data: {
                     description
                 }
             });
+
             return { wallet: updatedWallet, transaction: newTransaction };
         });
     } catch (e: any) {
