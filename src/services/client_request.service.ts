@@ -237,7 +237,6 @@ export const getByClientRequest = async (id: number) => {
     };
     return normalizeBigInt(formatted);
 };
-
 export const assignDriver = async (data: AssignDriverInput) => {
     const clientRequest = await prisma.clientRequests.findUnique({
         where: { id: data.id },
@@ -254,7 +253,6 @@ export const assignDriver = async (data: AssignDriverInput) => {
     const driverEarnings = totalFare * (1 - commissionRate);
     let paymentId: string | null = null;
     let paymentStatus: 'PENDING' | 'PAID' = 'PENDING';
-
     if (paymentMethod === 'CARD') {
         let userCard = null;
         if (data.id_card) {
@@ -324,20 +322,21 @@ export const updateStatus = async (data: UpdateClientRequestInput) => {
     });
     if (newStatus === 'FINISHED' && updatedClientRequest.id_driver_assigned) {
         const totalFare = updatedClientRequest.fare_assigned ?? updatedClientRequest.fare_offered;
-
+        const driverId = updatedClientRequest.id_driver_assigned;
         const paymentResult = await DriverWalletService.processTripPayment({
             id_client_request: updatedClientRequest.id,
-            id_driver: updatedClientRequest.id_driver_assigned,
+            id_driver: driverId,
             total_fare: totalFare,
             payment_method: updatedClientRequest.payment_method
         });
         try {
             const io = getIO();
             const newBalance = paymentResult.wallet?.balance ?? 0;
-            io.emit(`wallet_updated/${updatedClientRequest.id_driver_assigned}`, {
-                new_balance: newBalance
+            io.emit(`wallet_updated/${driverId}`, {
+                id_driver: driverId,
+                new_balance: Number(newBalance)
             });
-            console.log(`📡 Evento 'wallet_updated/${updatedClientRequest.id_driver_assigned}' emitido con saldo: ${newBalance}`);
+            console.log(`📡 Evento 'wallet_updated/${driverId}' emitido con saldo: $${newBalance}`);
         } catch (err) {
             console.warn("⚠️ No se pudo emitir evento 'wallet_updated' por Socket:", err);
         }
@@ -374,7 +373,6 @@ export const updateDriverRating = async (data: UpdateDriverRatingInput) => {
     });
     return updatedClientRequest;
 };
-
 export const getTimeAndDistance = async (
     originLat: number,
     originLng: number,
