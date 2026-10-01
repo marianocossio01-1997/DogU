@@ -6,7 +6,7 @@ import { getIO } from '../sockets/socketHandler.js';
 export const getOrCreateWallet = async (id_driver: number) => {
     try {
         if (!id_driver || isNaN(id_driver) || id_driver <= 0) {
-            throw new AppError('El ID del conductor ingresado no es válido.', 400);
+            throw new AppError('El id_driver proporcionado no es válido.', 400);
         }
         let wallet = await prisma.driverWallet.findUnique({
             where: { id_driver },
@@ -18,7 +18,7 @@ export const getOrCreateWallet = async (id_driver: number) => {
             }
         });
         if (!wallet) {
-            console.log(`✨ Creando nueva billetera limpia ($0.0) para el id_driver: ${id_driver}`);
+            console.log(`✨ Creando nueva billetera ($0.0) para el id_driver: ${id_driver}`);
             wallet = await prisma.driverWallet.create({
                 data: {
                     id_driver,
@@ -35,12 +35,12 @@ export const getOrCreateWallet = async (id_driver: number) => {
         throw new AppError(`Error al obtener o crear la billetera del conductor: ${e.message || e}`, 500);
     }
 };
+
 export const getTransactions = async (id_driver: number) => {
     try {
         const wallet = await getOrCreateWallet(id_driver);
-        const walletId = wallet.id_driver;
         const transactions = await prisma.walletTransaction.findMany({
-            where: { id_driver_wallet: walletId },
+            where: { id_driver_wallet: wallet.id_driver },
             orderBy: { created_at: 'desc' },
             include: {
                 client_request: {
@@ -58,6 +58,7 @@ export const getTransactions = async (id_driver: number) => {
         throw new AppError(`Error al obtener el historial de transacciones: ${e.message || e}`, 500);
     }
 };
+
 export const processTripPayment = async (data: {
     id_client_request: number;
     id_driver: number;
@@ -69,14 +70,16 @@ export const processTripPayment = async (data: {
         const commissionRate = 0.20;
         const platformFee = total_fare * commissionRate;
         const driverEarnings = total_fare * (1 - commissionRate);
+
         const wallet = await getOrCreateWallet(id_driver);
         const targetDriverId = wallet.id_driver;
+
         const result = await prisma.$transaction(async (tx) => {
             const existingTx = await tx.walletTransaction.findFirst({
                 where: { id_client_request }
             });
             if (existingTx) {
-                console.log(`⚠️ El viaje #${id_client_request} ya fue procesado previamente en la billetera.`);
+                console.log(`⚠️ El viaje #${id_client_request} ya fue procesado previamente.`);
                 const currentWallet = await tx.driverWallet.findUnique({
                     where: { id_driver: targetDriverId }
                 });
@@ -87,18 +90,21 @@ export const processTripPayment = async (data: {
                     driver_earnings: driverEarnings
                 };
             }
+
             let amountTransaction = 0;
             let type: TransactionType;
             let description = '';
+
             if (payment_method === PaymentMethod.CASH) {
                 amountTransaction = -platformFee;
                 type = TransactionType.TRIP_COMMISSION_DEBIT;
-                description = `Comisión del 20% por viaje #${id_client_request} (Pago en efectivo)`;
+                description = `Comisión del 20% por viaje #${id_client_request} (Efectivo)`;
             } else {
                 amountTransaction = driverEarnings;
                 type = TransactionType.TRIP_EARNING_CREDIT;
                 description = `Acreditación del 80% por viaje #${id_client_request} (Pago digital)`;
             }
+
             await tx.clientRequests.update({
                 where: { id: id_client_request },
                 data: {
@@ -108,6 +114,7 @@ export const processTripPayment = async (data: {
                     payment_status: payment_method === PaymentMethod.CARD ? 'PAID' : 'PENDING'
                 }
             });
+
             const updatedWallet = await tx.driverWallet.update({
                 where: { id_driver: targetDriverId },
                 data: {
@@ -116,6 +123,7 @@ export const processTripPayment = async (data: {
                     }
                 }
             });
+
             const newTransaction = await tx.walletTransaction.create({
                 data: {
                     id_driver_wallet: targetDriverId,
@@ -125,6 +133,7 @@ export const processTripPayment = async (data: {
                     description: description
                 }
             });
+
             return {
                 wallet: updatedWallet,
                 transaction: newTransaction,
@@ -132,6 +141,7 @@ export const processTripPayment = async (data: {
                 driver_earnings: driverEarnings
             };
         });
+
         if (result.wallet) {
             try {
                 getIO().emit(`wallet_updated/${targetDriverId}`, {
@@ -149,6 +159,7 @@ export const processTripPayment = async (data: {
         throw new AppError(`Error al procesar el pago del viaje en la billetera: ${e.message || e}`, 500);
     }
 };
+
 export const requestWithdrawal = async (data: {
     id_driver: number;
     amount: number;
@@ -159,9 +170,11 @@ export const requestWithdrawal = async (data: {
         const { id_driver, amount, id_card, notes } = data;
         const wallet = await getOrCreateWallet(id_driver);
         const targetDriverId = wallet.id_driver;
+
         if (Number(wallet.balance) < amount) {
             throw new AppError('Saldo insuficiente para realizar el retiro', 400);
         }
+
         const result = await prisma.$transaction(async (tx) => {
             const updatedWallet = await tx.driverWallet.update({
                 where: { id_driver: targetDriverId },
@@ -171,6 +184,7 @@ export const requestWithdrawal = async (data: {
                     }
                 }
             });
+
             const withdrawal = await tx.withdrawalRequest.create({
                 data: {
                     id_driver_wallet: targetDriverId,
@@ -180,6 +194,7 @@ export const requestWithdrawal = async (data: {
                     status: 'PENDING'
                 }
             });
+
             const transaction = await tx.walletTransaction.create({
                 data: {
                     id_driver_wallet: targetDriverId,
@@ -188,12 +203,14 @@ export const requestWithdrawal = async (data: {
                     description: `Solicitud de retiro de ganancias $${amount}`
                 }
             });
+
             return {
                 new_balance: updatedWallet.balance,
                 withdrawal,
                 transaction
             };
         });
+
         try {
             getIO().emit(`wallet_updated/${targetDriverId}`, {
                 id_driver: targetDriverId,
@@ -203,12 +220,14 @@ export const requestWithdrawal = async (data: {
         } catch (socketErr) {
             console.warn("⚠️ No se pudo emitir por socket:", socketErr);
         }
+
         return result;
     } catch (e: any) {
         if (e instanceof AppError) throw e;
         throw new AppError(`Error al procesar la solicitud de retiro: ${e.message || e}`, 500);
     }
 };
+
 export const getWithdrawalHistory = async (id_driver: number) => {
     try {
         const wallet = await getOrCreateWallet(id_driver);
@@ -221,6 +240,7 @@ export const getWithdrawalHistory = async (id_driver: number) => {
         throw new AppError(`Error al obtener el historial de retiros: ${e.message || e}`, 500);
     }
 };
+
 export const addTransaction = async (data: {
     id_driver: number;
     id_client_request?: number;
@@ -232,6 +252,7 @@ export const addTransaction = async (data: {
         const { id_driver, id_client_request, amount, type, description } = data;
         const wallet = await getOrCreateWallet(id_driver);
         const targetDriverId = wallet.id_driver;
+
         const result = await prisma.$transaction(async (tx) => {
             const updatedWallet = await tx.driverWallet.update({
                 where: { id_driver: targetDriverId },
@@ -241,6 +262,7 @@ export const addTransaction = async (data: {
                     }
                 }
             });
+
             const newTransaction = await tx.walletTransaction.create({
                 data: {
                     id_driver_wallet: targetDriverId,
@@ -250,8 +272,10 @@ export const addTransaction = async (data: {
                     description
                 }
             });
+
             return { wallet: updatedWallet, transaction: newTransaction };
         });
+
         if (result.wallet) {
             try {
                 getIO().emit(`wallet_updated/${targetDriverId}`, {

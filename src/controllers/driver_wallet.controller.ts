@@ -4,8 +4,7 @@ import { processTripPaymentSchema, addTransactionSchema } from '../validators/dr
 
 export const getWalletByDriver = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const rawId = req.params.id_driver ?? req.params.idDriver ?? req.params.id;
-        const id_driver = Number(rawId);
+        const id_driver = Number(req.params.id_driver);
         if (isNaN(id_driver) || id_driver <= 0) {
             return res.status(400).json({
                 success: false,
@@ -24,8 +23,7 @@ export const getWalletByDriver = async (req: Request, res: Response, next: NextF
 };
 export const getTransactions = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const rawId = req.params.id_driver ?? req.params.idDriver ?? req.params.id;
-        const id_driver = Number(rawId);
+        const id_driver = Number(req.params.id_driver);
         if (isNaN(id_driver) || id_driver <= 0) {
             return res.status(400).json({
                 success: false,
