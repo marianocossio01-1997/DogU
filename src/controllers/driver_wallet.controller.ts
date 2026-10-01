@@ -26,7 +26,6 @@ export const getTransactions = async (req: Request, res: Response, next: NextFun
     try {
         const rawId = req.params.id_driver ?? req.params.idDriver ?? req.params.id;
         const id_driver = Number(rawId);
-
         if (isNaN(id_driver) || id_driver <= 0) {
             return res.status(400).json({
                 success: false,
@@ -59,7 +58,6 @@ export const addTransaction = async (req: Request, res: Response, next: NextFunc
     try {
         const validatedData = addTransactionSchema.parse(req.body);
         const result = await DriverWalletService.addTransaction(validatedData as any);
-        
         return res.status(201).json({
             success: true,
             data: result

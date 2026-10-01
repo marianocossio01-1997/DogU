@@ -1,6 +1,7 @@
 import { PaymentMethod, TransactionType } from '@prisma/client';
 import prisma from '../database/prismaClient.js';
 import { AppError } from '../utils/AppError.js';
+import { getIO } from '../sockets/socketHandler.js';
 
 export const getOrCreateWallet = async (id_driver: number) => {
     try {
@@ -51,7 +52,6 @@ export const getTransactions = async (id_driver: number) => {
                 }
             }
         });
-
         return transactions;
     } catch (e: any) {
         if (e instanceof AppError) throw e;
@@ -71,7 +71,7 @@ export const processTripPayment = async (data: {
         const driverEarnings = total_fare * (1 - commissionRate);
         const wallet = await getOrCreateWallet(id_driver);
         const targetDriverId = wallet.id_driver;
-        return await prisma.$transaction(async (tx) => {
+        const result = await prisma.$transaction(async (tx) => {
             const existingTx = await tx.walletTransaction.findFirst({
                 where: { id_client_request }
             });
@@ -80,7 +80,6 @@ export const processTripPayment = async (data: {
                 const currentWallet = await tx.driverWallet.findUnique({
                     where: { id_driver: targetDriverId }
                 });
-
                 return {
                     wallet: currentWallet,
                     transaction: existingTx,
@@ -133,6 +132,18 @@ export const processTripPayment = async (data: {
                 driver_earnings: driverEarnings
             };
         });
+        if (result.wallet) {
+            try {
+                getIO().emit(`wallet_updated/${targetDriverId}`, {
+                    id_driver: targetDriverId,
+                    new_balance: Number(result.wallet.balance)
+                });
+                console.log(`📡 [SOCKET] Saldo emitido a 'wallet_updated/${targetDriverId}': $${result.wallet.balance}`);
+            } catch (socketErr) {
+                console.warn("⚠️ No se pudo emitir por socket:", socketErr);
+            }
+        }
+        return result;
     } catch (e: any) {
         if (e instanceof AppError) throw e;
         throw new AppError(`Error al procesar el pago del viaje en la billetera: ${e.message || e}`, 500);
@@ -151,7 +162,7 @@ export const requestWithdrawal = async (data: {
         if (Number(wallet.balance) < amount) {
             throw new AppError('Saldo insuficiente para realizar el retiro', 400);
         }
-        return await prisma.$transaction(async (tx) => {
+        const result = await prisma.$transaction(async (tx) => {
             const updatedWallet = await tx.driverWallet.update({
                 where: { id_driver: targetDriverId },
                 data: {
@@ -183,6 +194,16 @@ export const requestWithdrawal = async (data: {
                 transaction
             };
         });
+        try {
+            getIO().emit(`wallet_updated/${targetDriverId}`, {
+                id_driver: targetDriverId,
+                new_balance: Number(result.new_balance)
+            });
+            console.log(`📡 [SOCKET] Retiro emitido a 'wallet_updated/${targetDriverId}': $${result.new_balance}`);
+        } catch (socketErr) {
+            console.warn("⚠️ No se pudo emitir por socket:", socketErr);
+        }
+        return result;
     } catch (e: any) {
         if (e instanceof AppError) throw e;
         throw new AppError(`Error al procesar la solicitud de retiro: ${e.message || e}`, 500);
@@ -211,7 +232,7 @@ export const addTransaction = async (data: {
         const { id_driver, id_client_request, amount, type, description } = data;
         const wallet = await getOrCreateWallet(id_driver);
         const targetDriverId = wallet.id_driver;
-        return await prisma.$transaction(async (tx) => {
+        const result = await prisma.$transaction(async (tx) => {
             const updatedWallet = await tx.driverWallet.update({
                 where: { id_driver: targetDriverId },
                 data: {
@@ -231,6 +252,18 @@ export const addTransaction = async (data: {
             });
             return { wallet: updatedWallet, transaction: newTransaction };
         });
+        if (result.wallet) {
+            try {
+                getIO().emit(`wallet_updated/${targetDriverId}`, {
+                    id_driver: targetDriverId,
+                    new_balance: Number(result.wallet.balance)
+                });
+                console.log(`📡 [SOCKET] Transacción emitida a 'wallet_updated/${targetDriverId}': $${result.wallet.balance}`);
+            } catch (socketErr) {
+                console.warn("⚠️ No se pudo emitir por socket:", socketErr);
+            }
+        }
+        return result;
     } catch (e: any) {
         if (e instanceof AppError) throw e;
         throw new AppError(`Error al agregar la transacción: ${e.message || e}`, 500);

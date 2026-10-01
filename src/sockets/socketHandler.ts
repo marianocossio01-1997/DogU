@@ -2,6 +2,7 @@ import { Server, Socket } from "socket.io";
 import { Server as Httpserver } from "http";
 import { AppError } from "../utils/AppError.js";
 import prisma from "../database/prismaClient.js";
+import { TransactionType } from "@prisma/client";
 
 let io: Server;
 const activeDriversMap = new Map<number, { id: number; lat: number; lng: number; updatedAt: number }>();
@@ -38,6 +39,7 @@ export const initializaSocket = (server: Httpserver) => {
     });
     io.on("connection", (socket: Socket) => {
         console.log("🟢 Cliente/Conductor conectado a Socket.io:", socket.id);
+
         socket.on("message", (data: any) => {
             console.log("Mensaje recibido:", data);
             io.emit("new_message", "Saludos desde el servidor");
@@ -48,6 +50,7 @@ export const initializaSocket = (server: Httpserver) => {
                 const idSender = data?.id_sender || data?.idSender;
                 const idReceiver = data?.id_receiver || data?.idReceiver;
                 const message = data?.message;
+
                 if (!idClientRequest || !idSender || !idReceiver || !message) {
                     console.warn("⚠️ Evento 'send_message' incompleto recibido:", data);
                     return;
@@ -62,6 +65,7 @@ export const initializaSocket = (server: Httpserver) => {
                 const channel = `message_received/${idClientRequest}`;
                 console.log(`💬 Retransmitiendo mensaje a '${channel}':`, message);
                 io.emit(channel, payload);
+
                 await prisma.chatMessage.create({
                     data: {
                         id_client_request: Number(idClientRequest),
@@ -78,6 +82,7 @@ export const initializaSocket = (server: Httpserver) => {
             const driverId = Number(data?.id || data?.id_driver);
             const lat = Number(data?.lat);
             const lng = Number(data?.lng);
+
             if (driverId && !isNaN(lat) && !isNaN(lng)) {
                 socketToDriverMap.set(socket.id, driverId);
                 activeDriversMap.set(driverId, {
@@ -86,7 +91,6 @@ export const initializaSocket = (server: Httpserver) => {
                     lng: lng,
                     updatedAt: Date.now()
                 });
-
                 const position = {
                     "id_socket": socket.id,
                     "id": driverId,
@@ -145,7 +149,7 @@ export const initializaSocket = (server: Httpserver) => {
                             };
                         }
                     } catch (dbError) {
-                        console.warn("⚠️️ No se pudo consultar prisma.user directamente:", dbError);
+                        console.warn("⚠ No se pudo consultar prisma.user directamente:", dbError);
                     }
                 }
                 const rawImage = clientObj?.image || data?.client_image || data?.image || "";
@@ -175,6 +179,7 @@ export const initializaSocket = (server: Httpserver) => {
                     "pickup_position": data?.pickup_position || { x: pickupLat, y: pickupLng },
                     "destination_position": data?.destination_position || { x: destLat, y: destLng }
                 };
+
                 if (!isNaN(pickupLat) && !isNaN(pickupLng) && pickupLat !== 0.0 && pickupLng !== 0.0) {
                     let notifiedCount = 0;
                     for (const [socketId, driverId] of socketToDriverMap.entries()) {
@@ -286,6 +291,7 @@ export const initializaSocket = (server: Httpserver) => {
                 const idClientRequest = Number(data?.id_client_request || data?.idClientRequest || data?.id);
                 if (!idClientRequest) return;
                 console.log(`❌ Cancelando solicitud de viaje #${idClientRequest}...`);
+
                 try {
                     await prisma.clientRequests.update({
                         where: { id: idClientRequest },
@@ -294,6 +300,7 @@ export const initializaSocket = (server: Httpserver) => {
                 } catch (dbError) {
                     console.warn("⚠️ No se pudo actualizar el status a CANCELLED en BD:", dbError);
                 }
+
                 io.emit("client_request_cancelled", {
                     id_client_request: idClientRequest,
                     id: idClientRequest
@@ -311,7 +318,6 @@ export const initializaSocket = (server: Httpserver) => {
                 const idClientRequest = String(data.id_client_request).trim();
                 const idDriver = data?.id_driver || data?.idDriver || data?.driver?.id;
                 let driverObj = data?.driver || {};
-
                 if (idDriver) {
                     try {
                         const driverDb = await prisma.user.findUnique({
@@ -397,7 +403,6 @@ export const initializaSocket = (server: Httpserver) => {
                 const idDriver = Number(data?.id_driver || data?.idDriver);
 
                 console.log(`📌 Cambiando estado de viaje #${idClientRequest} a '${status}' para conductor #${idDriver}`);
-
                 if (idClientRequest && status) {
                     await prisma.clientRequests.update({
                         where: { id: idClientRequest },
@@ -408,46 +413,61 @@ export const initializaSocket = (server: Httpserver) => {
                     });
                 }
                 if ((status === "FINISHED" || status === "COMPLETED") && idDriver) {
-                    const trip = await prisma.clientRequests.findUnique({
-                        where: { id: idClientRequest }
+                    const existingTx = await prisma.walletTransaction.findFirst({
+                        where: { id_client_request: idClientRequest }
                     });
-                    const tripAny = trip as any;
-                    const totalFare = Number(
-                        tripAny?.fare || 
-                        tripAny?.fare_offered || 
-                        tripAny?.price || 
-                        data?.fare || 
-                        data?.total_fare || 
-                        0
-                    );
-                    const commissionRate = 0.20; 
-                    const commissionAmount = totalFare * commissionRate;
-                    if (commissionAmount > 0) {
-                        const wallet: any = await prisma.driverWallet.upsert({
-                            where: { id_driver: idDriver },
-                            update: {
-                                balance: {
-                                    decrement: commissionAmount 
+                    let currentWalletBalance: number | null = null;
+                    if (!existingTx) {
+                        const trip = await prisma.clientRequests.findUnique({
+                            where: { id: idClientRequest }
+                        });
+                        const tripAny = trip as any;
+                        const totalFare = Number(
+                            tripAny?.fare || 
+                            tripAny?.fare_offered || 
+                            tripAny?.price || 
+                            data?.fare || 
+                            data?.total_fare || 
+                            0
+                        );
+                        const commissionRate = 0.20; 
+                        const commissionAmount = totalFare * commissionRate;
+                        if (commissionAmount > 0) {
+                            const wallet = await prisma.driverWallet.upsert({
+                                where: { id_driver: idDriver },
+                                update: {
+                                    balance: {
+                                        decrement: commissionAmount 
+                                    }
+                                },
+                                create: {
+                                    id_driver: idDriver,
+                                    balance: -commissionAmount
                                 }
-                            },
-                            create: {
-                                id_driver: idDriver,
-                                balance: -commissionAmount
-                            }
+                            });
+                            currentWalletBalance = Number(wallet.balance);
+                            await prisma.walletTransaction.create({
+                                data: {
+                                    id_driver_wallet: idDriver,
+                                    id_client_request: idClientRequest,
+                                    amount: -commissionAmount,
+                                    type: TransactionType.TRIP_COMMISSION_DEBIT, // 👈 Se utiliza el Enum correcto de Prisma
+                                    description: `Comisión (20%) por viaje #${idClientRequest}`
+                                }
+                            });
+
+                            console.log(`💰 [BD ACTUALIZADA] Conductor #${idDriver} - Comisión descontada: -$${commissionAmount}. Saldo actual: $${currentWalletBalance}`);
+                        }
+                    } else {
+                        const wallet = await prisma.driverWallet.findUnique({
+                            where: { id_driver: idDriver }
                         });
-                        const walletId = Number(wallet?.id || wallet?.id_driver_wallet || wallet?.id_wallet);
-                        await prisma.walletTransaction.create({
-                            data: {
-                                id_driver_wallet: walletId,
-                                id_client_request: idClientRequest,
-                                amount: -commissionAmount,
-                                type: 'TRIP_COMMISSION' as any,
-                                description: `Comisión (20%) por viaje #${idClientRequest}`
-                            }
-                        });
-                        console.log(`💰 [BD ACTUALIZADA] Conductor #${idDriver} - Nueva comisión cargada: -$${commissionAmount}. Saldo actual: $${wallet.balance}`);
+                        currentWalletBalance = wallet ? Number(wallet.balance) : null;
+                    }
+                    if (currentWalletBalance !== null) {
                         io.emit(`wallet_updated/${idDriver}`, {
-                            new_balance: Number(wallet.balance)
+                            id_driver: idDriver,
+                            new_balance: currentWalletBalance
                         });
                     }
                 }
