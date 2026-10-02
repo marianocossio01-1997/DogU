@@ -18,6 +18,22 @@ export const getOrCreateWallet = async (id_driver: number) => {
             }
         });
         if (!wallet) {
+            const driverInfo = await prisma.driverCarInfo.findFirst({
+                where: { id_driver: id_driver }
+            });
+            if (driverInfo) {
+                wallet = await prisma.driverWallet.findUnique({
+                    where: { id_driver: driverInfo.id_driver },
+                    include: {
+                        transactions: {
+                            orderBy: { created_at: 'desc' },
+                            take: 20
+                        }
+                    }
+                });
+            }
+        }
+        if (!wallet) {
             console.log(`✨ Creando nueva billetera ($0.0) para el id_driver: ${id_driver}`);
             wallet = await prisma.driverWallet.create({
                 data: {
@@ -35,7 +51,6 @@ export const getOrCreateWallet = async (id_driver: number) => {
         throw new AppError(`Error al obtener o crear la billetera del conductor: ${e.message || e}`, 500);
     }
 };
-
 export const getTransactions = async (id_driver: number) => {
     try {
         const wallet = await getOrCreateWallet(id_driver);
