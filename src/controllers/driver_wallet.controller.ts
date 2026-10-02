@@ -29,14 +29,12 @@ export const getTransactions = async (req: Request, res: Response, next: NextFun
     try {
         const rawDriverId = req.params.id_driver || req.params.idDriver || req.params.id;
         const id_driver = Number(rawDriverId);
-
         if (isNaN(id_driver) || id_driver <= 0) {
             return res.status(400).json({
                 success: false,
                 message: "El id_driver proporcionado es inválido."
             });
         }
-
         const transactions = await DriverWalletService.getTransactions(id_driver);
         return res.status(200).json({
             success: true,
@@ -46,7 +44,6 @@ export const getTransactions = async (req: Request, res: Response, next: NextFun
         next(error);
     }
 };
-
 export const processTripPayment = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const validatedData = processTripPaymentSchema.parse(req.body);
@@ -60,7 +57,6 @@ export const processTripPayment = async (req: Request, res: Response, next: Next
         next(error);
     }
 };
-
 export const addTransaction = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const validatedData = addTransactionSchema.parse(req.body);

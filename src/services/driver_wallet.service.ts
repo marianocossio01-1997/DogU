@@ -18,31 +18,7 @@ export const getOrCreateWallet = async (id_driver: number) => {
             }
         });
         if (!wallet) {
-            console.log(`🔎 No se encontró wallet directa para ID: ${id_driver}. Buscando driverCarInfo vinculado...`);
-        
-            const driverInfo = await prisma.driverCarInfo.findFirst({
-                where: {
-                    OR: [
-                        { id_driver: id_driver },
-                        { id_user: id_driver } as any 
-                    ]
-                }
-            });
-            if (driverInfo && driverInfo.id_driver) {
-                console.log(`✅ Encontrado id_driver real: ${driverInfo.id_driver}`);
-                wallet = await prisma.driverWallet.findUnique({
-                    where: { id_driver: driverInfo.id_driver },
-                    include: {
-                        transactions: {
-                            orderBy: { created_at: 'desc' },
-                            take: 20
-                        }
-                    }
-                });
-            }
-        }
-        if (!wallet) {
-            console.log(`✨ Creando nueva billetera ($0.0) únicamente tras confirmar inexistencia para id_driver: ${id_driver}`);
+            console.log(`✨ Creando nueva billetera ($0.0) para el conductor ID: ${id_driver}`);
             wallet = await prisma.driverWallet.create({
                 data: {
                     id_driver,
