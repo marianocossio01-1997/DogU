@@ -45,7 +45,7 @@ app.use("/driver-trip-offers", driverTripOfferRouter);
 app.use("/driver-car-info", driverCarInfoRautes);
 app.use("/chat", chatMessageRouter); 
 app.use("/country-config", countryConfigRouter); 
-app.use("/driver-wallet", driverWalletRouter);
+app.use("/driver_wallet", driverWalletRouter);
 app.use("/user-cards", userCardRouter);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/withdrawals', withdrawalRoutes);
