@@ -82,7 +82,6 @@ export const initializaSocket = (server: Httpserver) => {
             const driverId = Number(data?.id || data?.id_driver);
             const lat = Number(data?.lat);
             const lng = Number(data?.lng);
-
             if (driverId && !isNaN(lat) && !isNaN(lng)) {
                 socketToDriverMap.set(socket.id, driverId);
                 activeDriversMap.set(driverId, {
@@ -104,7 +103,7 @@ export const initializaSocket = (server: Httpserver) => {
         socket.on("get_nearby_drivers", async (data: any) => {
             try {
                 const driversFromMemory = Array.from(activeDriversMap.values()).filter(
-                    d => Date.now() - d.updatedAt < 10 * 60 * 1000 
+                    d => Date.now() - d.updatedAt < 10 * 60 * 1000
                 );
                 if (driversFromMemory.length > 0) {
                     socket.emit("nearby_drivers", driversFromMemory);
@@ -130,6 +129,7 @@ export const initializaSocket = (server: Httpserver) => {
                 const idRequest = data?.id_client_request || data?.id;
                 const idClient = data?.id_client || data?.client?.id || data?.idClient;
                 let clientObj = data?.client || {};
+
                 if (idClient) {
                     try {
                         const userDb = await prisma.user.findUnique({
@@ -156,31 +156,31 @@ export const initializaSocket = (server: Httpserver) => {
                     image: finalImageUrl
                 };
                 const pickupLat = Number(
-                    data?.pickupLat ?? 
-                    data?.pickup_lat ?? 
-                    data?.pickup_position?.lat ?? 
-                    data?.pickup_position?.x ?? 
+                    data?.pickupLat ??
+                    data?.pickup_lat ??
+                    data?.pickup_position?.lat ??
+                    data?.pickup_position?.x ??
                     0.0
                 );
                 const pickupLng = Number(
-                    data?.pickupLng ?? 
-                    data?.pickup_lng ?? 
-                    data?.pickup_position?.lng ?? 
-                    data?.pickup_position?.y ?? 
+                    data?.pickupLng ??
+                    data?.pickup_lng ??
+                    data?.pickup_position?.lng ??
+                    data?.pickup_position?.y ??
                     0.0
                 );
                 const destLat = Number(
-                    data?.destinationLat ?? 
-                    data?.destination_lat ?? 
-                    data?.destination_position?.lat ?? 
-                    data?.destination_position?.x ?? 
+                    data?.destinationLat ??
+                    data?.destination_lat ??
+                    data?.destination_position?.lat ??
+                    data?.destination_position?.x ??
                     0.0
                 );
                 const destLng = Number(
-                    data?.destinationLng ?? 
-                    data?.destination_lng ?? 
-                    data?.destination_position?.lng ?? 
-                    data?.destination_position?.y ?? 
+                    data?.destinationLng ??
+                    data?.destination_lng ??
+                    data?.destination_position?.lng ??
+                    data?.destination_position?.y ??
                     0.0
                 );
                 const clientRequest = {
@@ -201,14 +201,14 @@ export const initializaSocket = (server: Httpserver) => {
                     "destination_position": { x: destLat, y: destLng, lat: destLat, lng: destLng }
                 };
                 console.log(`📍 Coordenadas de búsqueda recibidas: Pickup (${pickupLat}, ${pickupLng})`);
+
                 if (!isNaN(pickupLat) && !isNaN(pickupLng) && pickupLat !== 0.0 && pickupLng !== 0.0) {
                     let notifiedCount = 0;
                     for (const [socketId, driverId] of socketToDriverMap.entries()) {
                         const driverPos = activeDriversMap.get(driverId);
-                        if (driverPos && (Date.now() - driverPos.updatedAt < 10 * 60 * 1000)) {
+                        if (driverPos && (Date.now() - driverPos.updatedAt < 15 * 60 * 1000)) {
                             const distanceKm = getDistanceInKm(pickupLat, pickupLng, driverPos.lat, driverPos.lng);
                             console.log(`📏 Distancia al conductor #${driverId}: ${distanceKm.toFixed(2)} km`);
-
                             if (distanceKm <= 5.0) {
                                 io.to(socketId).emit("created_client_request", clientRequest);
                                 notifiedCount++;
@@ -254,18 +254,20 @@ export const initializaSocket = (server: Httpserver) => {
                     const finalImageUrl = formatImageUrl(requestDb.client?.image);
                     const reqAny = requestDb as any;
                     const pickupLat = Number(
-                        reqAny?.pickupLat ?? 
-                        reqAny?.pickup_lat ?? 
-                        reqAny?.pickup_position?.x ?? 
-                        data?.pickup_lat ?? 
-                        data?.pickupLat
+                        reqAny?.pickupLat ??
+                        reqAny?.pickup_lat ??
+                        reqAny?.pickup_position?.x ??
+                        reqAny?.pickup_position?.lat ??
+                        data?.pickup_lat ??
+                        data?.pickupLat ?? 0.0
                     );
                     const pickupLng = Number(
-                        reqAny?.pickupLng ?? 
-                        reqAny?.pickup_lng ?? 
-                        reqAny?.pickup_position?.y ?? 
-                        data?.pickup_lng ?? 
-                        data?.pickupLng
+                        reqAny?.pickupLng ??
+                        reqAny?.pickup_lng ??
+                        reqAny?.pickup_position?.y ??
+                        reqAny?.pickup_position?.lng ??
+                        data?.pickup_lng ??
+                        data?.pickupLng ?? 0.0
                     );
                     const payload = {
                         ...requestDb,
@@ -282,18 +284,21 @@ export const initializaSocket = (server: Httpserver) => {
                         payment_id: requestDb.payment_id || null,
                         pickupLat: pickupLat,
                         pickupLng: pickupLng,
-                        pickup_position: reqAny?.pickup_position || { x: pickupLat, y: pickupLng }
+                        pickup_position: reqAny?.pickup_position || { x: pickupLat, y: pickupLng, lat: pickupLat, lng: pickupLng }
                     };
-                    if (!isNaN(pickupLat) && !isNaN(pickupLng) && pickupLat !== 0.0) {
+                    if (!isNaN(pickupLat) && !isNaN(pickupLng) && pickupLat !== 0.0 && pickupLng !== 0.0) {
+                        let notifiedCount = 0;
                         for (const [socketId, driverId] of socketToDriverMap.entries()) {
                             const driverPos = activeDriversMap.get(driverId);
-                            if (driverPos && (Date.now() - driverPos.updatedAt < 10 * 60 * 1000)) {
+                            if (driverPos && (Date.now() - driverPos.updatedAt < 15 * 60 * 1000)) {
                                 const distanceKm = getDistanceInKm(pickupLat, pickupLng, driverPos.lat, driverPos.lng);
                                 if (distanceKm <= 5.0) {
                                     io.to(socketId).emit("created_client_request", payload);
+                                    notifiedCount++;
                                 }
                             }
                         }
+                        console.log(`📡 'resend_client_request' emitida a ${notifiedCount} conductores dentro de los 5 KM.`);
                     } else {
                         io.emit("created_client_request", payload);
                     }
@@ -341,6 +346,7 @@ export const initializaSocket = (server: Httpserver) => {
                 const idClientRequest = String(data.id_client_request).trim();
                 const idDriver = data?.id_driver || data?.idDriver || data?.driver?.id;
                 let driverObj = data?.driver || {};
+
                 if (idDriver) {
                     try {
                         const driverDb = await prisma.user.findUnique({
@@ -360,7 +366,7 @@ export const initializaSocket = (server: Httpserver) => {
                             };
                         }
                     } catch (dbError) {
-                        console.warn("⚠️ No se pudo consultar prisma.user para el conductor:", dbError);
+                        console.warn("⚠️️ No se pudo consultar prisma.user para el conductor:", dbError);
                     }
                 }
                 const rawDriverImage = driverObj?.image || data?.driver_image || data?.image || "";
@@ -424,12 +430,11 @@ export const initializaSocket = (server: Httpserver) => {
                 const idClientRequest = Number(data?.id_client_request || data?.idClientRequest);
                 const status = data?.status;
                 const idDriver = Number(data?.id_driver || data?.idDriver);
-
                 console.log(`📌 Cambiando estado de viaje #${idClientRequest} a '${status}' para conductor #${idDriver}`);
                 if (idClientRequest && status) {
                     await prisma.clientRequests.update({
                         where: { id: idClientRequest },
-                        data: { 
+                        data: {
                             status: status,
                             ...(data?.payment_status ? { payment_status: data.payment_status } : {})
                         }
@@ -440,27 +445,29 @@ export const initializaSocket = (server: Httpserver) => {
                         where: { id_client_request: idClientRequest }
                     });
                     let currentWalletBalance: number | null = null;
+
                     if (!existingTx) {
                         const trip = await prisma.clientRequests.findUnique({
                             where: { id: idClientRequest }
                         });
                         const tripAny = trip as any;
                         const totalFare = Number(
-                            tripAny?.fare || 
-                            tripAny?.fare_offered || 
-                            tripAny?.price || 
-                            data?.fare || 
-                            data?.total_fare || 
+                            tripAny?.fare ||
+                            tripAny?.fare_offered ||
+                            tripAny?.price ||
+                            data?.fare ||
+                            data?.total_fare ||
                             0
                         );
                         const commissionRate = 0.20; 
                         const commissionAmount = totalFare * commissionRate;
+
                         if (commissionAmount > 0) {
                             const wallet = await prisma.driverWallet.upsert({
                                 where: { id_driver: idDriver },
                                 update: {
                                     balance: {
-                                        decrement: commissionAmount 
+                                        decrement: commissionAmount
                                     }
                                 },
                                 create: {
@@ -469,12 +476,13 @@ export const initializaSocket = (server: Httpserver) => {
                                 }
                             });
                             currentWalletBalance = Number(wallet.balance);
+
                             await prisma.walletTransaction.create({
                                 data: {
                                     id_driver_wallet: idDriver,
                                     id_client_request: idClientRequest,
                                     amount: -commissionAmount,
-                                    type: TransactionType.TRIP_COMMISSION_DEBIT, // 👈 Se utiliza el Enum correcto de Prisma
+                                    type: TransactionType.TRIP_COMMISSION_DEBIT,
                                     description: `Comisión (20%) por viaje #${idClientRequest}`
                                 }
                             });
@@ -487,6 +495,7 @@ export const initializaSocket = (server: Httpserver) => {
                         });
                         currentWalletBalance = wallet ? Number(wallet.balance) : null;
                     }
+
                     if (currentWalletBalance !== null) {
                         io.emit(`wallet_updated/${idDriver}`, {
                             id_driver: idDriver,
@@ -511,10 +520,10 @@ export const initializaSocket = (server: Httpserver) => {
             const driverId = Number(data?.id || data?.id_driver);
             if (driverId) {
                 activeDriversMap.delete(driverId);
-                io.emit("driver_disconnected", { 
+                io.emit("driver_disconnected", {
                     id: driverId,
-                    id_driver: driverId, 
-                    id_socket: socket.id 
+                    id_driver: driverId,
+                    id_socket: socket.id
                 });
             }
         });
@@ -524,20 +533,20 @@ export const initializaSocket = (server: Httpserver) => {
             if (driverId) {
                 activeDriversMap.delete(driverId);
                 socketToDriverMap.delete(socket.id);
-                io.emit("driver_disconnected", { 
+                io.emit("driver_disconnected", {
                     id: driverId,
                     id_driver: driverId,
                     id_socket: socket.id,
                 });
             } else {
-                io.emit("driver_disconnected", { 
+                io.emit("driver_disconnected", {
                     id_socket: socket.id,
                 });
             }
         });
     });
 };
-export const getIO = (): Server => { 
+export const getIO = (): Server => {
     if (!io) {
         throw new AppError("Socket.io no ha sido inicializado", 500);
     }
