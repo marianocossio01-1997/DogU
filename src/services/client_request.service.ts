@@ -97,6 +97,7 @@ export const createClientRequest = async (data: CreateClientRequestInput) => {
             `;
             return row?.id ? Number(row?.id) : null;
         });
+
         if (!requestId) {
             throw new AppError('No se pudo obtener el ID de la solicitud creada', 500);
         }
@@ -122,7 +123,7 @@ export const getByClientRequestCreated = async (id: number) => {
             CR.updated_at,
             JSON_OBJECT(
                 'x', ST_Y(pickup_position),
-                'y', ST_X(pickup_position)
+                'y', ST_X(pickup_position)  
             ) AS pickup_position,
             JSON_OBJECT(
                 'x', ST_Y(destination_position),
@@ -504,9 +505,11 @@ export const getNearbyClientRequests = async (driverLat: number, driverLng: numb
             ON
                 U.id = CR.id_client
             WHERE
-                timestampdiff(MINUTE, CR.updated_at, NOW()) < 10000 AND status = "CREATED"
+                timestampdiff(MINUTE, CR.updated_at, NOW()) < 30 AND status = "CREATED"
             HAVING
                 distance <= 5000
+            ORDER BY 
+                CR.id DESC
         `;
         if (!rawData || !rawData.length) {
             return [];
@@ -544,9 +547,9 @@ export const getNearbyClientRequests = async (driverLat: number, driverLng: numb
                     ...clientObj,
                     image: formatImageUrl(clientObj.image)
                 },
-                google_distance_metrix: {
+                google_distance_matrix: {
                     status: elements[index]?.status ?? "OK",
-                    distance: elements[index]?.distance ?? { text: `${Math.round(item.distance / 1000)} km`, value: item.distance },
+                    distance: elements[index]?.distance ?? { text: `${(item.distance / 1000).toFixed(1)} km`, value: item.distance },
                     duration: elements[index]?.duration ?? { text: "N/A", value: 0 }
                 }
             };
