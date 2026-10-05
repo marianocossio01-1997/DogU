@@ -7,6 +7,7 @@ import { TransactionType } from "@prisma/client";
 let io: Server;
 const activeDriversMap = new Map<number, { id: number; lat: number; lng: number; updatedAt: number }>();
 const socketToDriverMap = new Map<string, number>();
+
 const getDistanceInKm = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
     const R = 6371; 
     const dLat = (lat2 - lat1) * (Math.PI / 180);
@@ -19,6 +20,7 @@ const getDistanceInKm = (lat1: number, lon1: number, lat2: number, lon2: number)
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
 };
+
 const formatImageUrl = (imagePath: string | null | undefined): string | null => {
     if (!imagePath || imagePath.trim() === '' || imagePath === 'null') return null;
     const cleanPath = imagePath.trim();
@@ -30,6 +32,7 @@ const formatImageUrl = (imagePath: string | null | undefined): string | null => 
     const pathWithSlash = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
     return `http://${host}:${port}${pathWithSlash}`;
 };
+
 export const initializaSocket = (server: Httpserver) => {
     io = new Server(server, {
         cors: {
@@ -37,6 +40,7 @@ export const initializaSocket = (server: Httpserver) => {
             methods: ["GET", "POST"]
         }
     });
+
     io.on("connection", (socket: Socket) => {
         console.log("🟢 Cliente/Conductor conectado a Socket.io:", socket.id);
 
@@ -44,6 +48,7 @@ export const initializaSocket = (server: Httpserver) => {
             console.log("Mensaje recibido:", data);
             io.emit("new_message", "Saludos desde el servidor");
         });
+
         socket.on("send_message", async (data: any) => {
             try {
                 const idClientRequest = data?.id_client_request || data?.idClientRequest;
@@ -78,6 +83,7 @@ export const initializaSocket = (server: Httpserver) => {
                 console.error("🚨 Error al procesar y guardar 'send_message':", error);
             }
         });
+
         socket.on("change_driver_position", (data: any) => {
             const driverId = Number(data?.id || data?.id_driver);
             const lat = Number(data?.lat);
@@ -100,6 +106,7 @@ export const initializaSocket = (server: Httpserver) => {
                 io.emit("new_driver_position", position);
             }
         });
+
         socket.on("get_nearby_drivers", async (data: any) => {
             try {
                 const driversFromMemory = Array.from(activeDriversMap.values()).filter(
@@ -124,6 +131,7 @@ export const initializaSocket = (server: Httpserver) => {
                 socket.emit("nearby_drivers", []);
             }
         });
+
         socket.on("new_client_request", async (data: any) => {
             try {
                 const idRequest = data?.id_client_request || data?.id;
@@ -239,23 +247,34 @@ export const initializaSocket = (server: Httpserver) => {
                     return;
                 }
                 console.log(`🔄 Reenviando solicitud de viaje #${idClientRequest} a los conductores...`);
+                
                 const requestDb = await prisma.clientRequests.findUnique({
-                    where: { id: idClientRequest },
-                    include: {
-                        client: {
-                            select: {
-                                id: true,
-                                fullname: true,
-                                email: true,
-                                phone: true,
-                                image: true
-                            }
+                    where: { id: idClientRequest }
+                });
+
+                if (requestDb) {
+                    const reqAny = requestDb as any;
+                    const idClient = reqAny?.id_client || reqAny?.idClient;
+                    let clientData: any = null;
+
+                    if (idClient) {
+                        try {
+                            clientData = await prisma.user.findUnique({
+                                where: { id: Number(idClient) },
+                                select: {
+                                    id: true,
+                                    fullname: true,
+                                    email: true,
+                                    phone: true,
+                                    image: true
+                                }
+                            });
+                        } catch (uErr) {
+                            console.warn("⚠️ Error al buscar usuario del viaje:", uErr);
                         }
                     }
-                });
-                if (requestDb) {
-                    const finalImageUrl = formatImageUrl(requestDb.client?.image);
-                    const reqAny = requestDb as any;
+
+                    const finalImageUrl = formatImageUrl(clientData?.image);
                     const pickupLat = Number(
                         reqAny?.pickup_lat ??
                         reqAny?.pickupLat ??
@@ -277,14 +296,14 @@ export const initializaSocket = (server: Httpserver) => {
                         id: requestDb.id,
                         id_client_request: requestDb.id,
                         id_socket: socket.id,
-                        client: requestDb.client ? {
-                            ...requestDb.client,
+                        client: clientData ? {
+                            ...clientData,
                             image: finalImageUrl
                         } : {},
                         client_image: finalImageUrl || "",
-                        payment_method: requestDb.payment_method || "CASH",
-                        payment_status: requestDb.payment_status || "PENDING",
-                        payment_id: requestDb.payment_id || null,
+                        payment_method: reqAny?.payment_method || "CASH",
+                        payment_status: reqAny?.payment_status || "PENDING",
+                        payment_id: reqAny?.payment_id || null,
                         pickupLat: pickupLat,
                         pickupLng: pickupLng,
                         pickup_lat: pickupLat,
@@ -319,6 +338,7 @@ export const initializaSocket = (server: Httpserver) => {
                 console.error("🚨 Error al procesar 'resend_client_request':", error);
             }
         });
+
         socket.on("cancel_client_request", async (data: any) => {
             try {
                 const idClientRequest = Number(data?.id_client_request || data?.idClientRequest || data?.id);
@@ -342,6 +362,7 @@ export const initializaSocket = (server: Httpserver) => {
                 console.error("🚨 Error al procesar 'cancel_client_request':", error);
             }
         });
+
         socket.on("new_driver_offer", async (data: any) => {
             try {
                 if (!data?.id_client_request) {
@@ -399,6 +420,7 @@ export const initializaSocket = (server: Httpserver) => {
                 });
             }
         });
+
         socket.on("new_driver_assigned", (data: any) => {
             const idDriver = data?.id_driver;
             const idClientRequest = data?.id_client_request;
@@ -420,6 +442,7 @@ export const initializaSocket = (server: Httpserver) => {
                 });
             }
         });
+
         socket.on("trip_change_driver_position", (data: any) => {
             const idClient = data?.id_client;
             const driverPosition = {
@@ -467,7 +490,7 @@ export const initializaSocket = (server: Httpserver) => {
                         const commissionAmount = totalFare * commissionRate;
 
                         if (commissionAmount > 0) {
-                            const wallet = await prisma.driverWallet.upsert({
+                            const walletRaw = await prisma.driverWallet.upsert({
                                 where: { id_driver: idDriver },
                                 update: {
                                     balance: {
@@ -479,11 +502,14 @@ export const initializaSocket = (server: Httpserver) => {
                                     balance: -commissionAmount
                                 }
                             });
-                            currentWalletBalance = Number(wallet.balance);
+                            
+                            const walletAny = walletRaw as any;
+                            const walletId = walletAny?.id || walletAny?.id_wallet || walletAny?.id_driver_wallet || idDriver;
+                            currentWalletBalance = Number(walletAny.balance);
 
                             await prisma.walletTransaction.create({
                                 data: {
-                                    id_driver_wallet: idDriver,
+                                    id_driver_wallet: walletId,
                                     id_client_request: idClientRequest,
                                     amount: -commissionAmount,
                                     type: TransactionType.TRIP_COMMISSION_DEBIT,
@@ -520,6 +546,7 @@ export const initializaSocket = (server: Httpserver) => {
                 console.error("🚨 Error grave al actualizar status de viaje o comisión en BD:", error);
             }
         });
+
         socket.on("disconnect_driver", (data: any) => {
             const driverId = Number(data?.id || data?.id_driver);
             if (driverId) {
@@ -531,6 +558,7 @@ export const initializaSocket = (server: Httpserver) => {
                 });
             }
         });
+
         socket.on("disconnect", () => {
             console.log("🔴 Cliente/Conductor desconectado:", socket.id);
             const driverId = socketToDriverMap.get(socket.id);
@@ -550,6 +578,7 @@ export const initializaSocket = (server: Httpserver) => {
         });
     });
 };
+
 export const getIO = (): Server => {
     if (!io) {
         throw new AppError("Socket.io no ha sido inicializado", 500);
