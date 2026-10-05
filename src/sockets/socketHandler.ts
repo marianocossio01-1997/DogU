@@ -129,7 +129,6 @@ export const initializaSocket = (server: Httpserver) => {
                 const idRequest = data?.id_client_request || data?.id;
                 const idClient = data?.id_client || data?.client?.id || data?.idClient;
                 let clientObj = data?.client || {};
-
                 if (idClient) {
                     try {
                         const userDb = await prisma.user.findUnique({
@@ -156,29 +155,29 @@ export const initializaSocket = (server: Httpserver) => {
                     image: finalImageUrl
                 };
                 const pickupLat = Number(
-                    data?.pickupLat ??
                     data?.pickup_lat ??
+                    data?.pickupLat ??
                     data?.pickup_position?.lat ??
                     data?.pickup_position?.x ??
                     0.0
                 );
                 const pickupLng = Number(
-                    data?.pickupLng ??
                     data?.pickup_lng ??
+                    data?.pickupLng ??
                     data?.pickup_position?.lng ??
                     data?.pickup_position?.y ??
                     0.0
                 );
                 const destLat = Number(
-                    data?.destinationLat ??
                     data?.destination_lat ??
+                    data?.destinationLat ??
                     data?.destination_position?.lat ??
                     data?.destination_position?.x ??
                     0.0
                 );
                 const destLng = Number(
-                    data?.destinationLng ??
                     data?.destination_lng ??
+                    data?.destinationLng ??
                     data?.destination_position?.lng ??
                     data?.destination_position?.y ??
                     0.0
@@ -195,13 +194,16 @@ export const initializaSocket = (server: Httpserver) => {
                     "payment_id": data?.payment_id || null,
                     "pickupLat": pickupLat,
                     "pickupLng": pickupLng,
+                    "pickup_lat": pickupLat,
+                    "pickup_lng": pickupLng,
                     "destinationLat": destLat,
                     "destinationLng": destLng,
+                    "destination_lat": destLat,
+                    "destination_lng": destLng,
                     "pickup_position": { x: pickupLat, y: pickupLng, lat: pickupLat, lng: pickupLng },
                     "destination_position": { x: destLat, y: destLng, lat: destLat, lng: destLng }
                 };
                 console.log(`📍 Coordenadas de búsqueda recibidas: Pickup (${pickupLat}, ${pickupLng})`);
-
                 if (!isNaN(pickupLat) && !isNaN(pickupLng) && pickupLat !== 0.0 && pickupLng !== 0.0) {
                     let notifiedCount = 0;
                     for (const [socketId, driverId] of socketToDriverMap.entries()) {
@@ -217,6 +219,7 @@ export const initializaSocket = (server: Httpserver) => {
                     }
                     console.log(`📡 'created_client_request' emitida a ${notifiedCount} conductores dentro del rango de 5 KM.`);
                 } else {
+                    console.warn("⚠️ Coordenadas no válidas (0.0). Realizando emisión global.");
                     io.emit("created_client_request", clientRequest);
                 }
             } catch (error) {
@@ -254,16 +257,16 @@ export const initializaSocket = (server: Httpserver) => {
                     const finalImageUrl = formatImageUrl(requestDb.client?.image);
                     const reqAny = requestDb as any;
                     const pickupLat = Number(
-                        reqAny?.pickupLat ??
                         reqAny?.pickup_lat ??
+                        reqAny?.pickupLat ??
                         reqAny?.pickup_position?.x ??
                         reqAny?.pickup_position?.lat ??
                         data?.pickup_lat ??
                         data?.pickupLat ?? 0.0
                     );
                     const pickupLng = Number(
-                        reqAny?.pickupLng ??
                         reqAny?.pickup_lng ??
+                        reqAny?.pickupLng ??
                         reqAny?.pickup_position?.y ??
                         reqAny?.pickup_position?.lng ??
                         data?.pickup_lng ??
@@ -284,6 +287,8 @@ export const initializaSocket = (server: Httpserver) => {
                         payment_id: requestDb.payment_id || null,
                         pickupLat: pickupLat,
                         pickupLng: pickupLng,
+                        pickup_lat: pickupLat,
+                        pickup_lng: pickupLng,
                         pickup_position: reqAny?.pickup_position || { x: pickupLat, y: pickupLng, lat: pickupLat, lng: pickupLng }
                     };
                     if (!isNaN(pickupLat) && !isNaN(pickupLng) && pickupLat !== 0.0 && pickupLng !== 0.0) {
@@ -346,7 +351,6 @@ export const initializaSocket = (server: Httpserver) => {
                 const idClientRequest = String(data.id_client_request).trim();
                 const idDriver = data?.id_driver || data?.idDriver || data?.driver?.id;
                 let driverObj = data?.driver || {};
-
                 if (idDriver) {
                     try {
                         const driverDb = await prisma.user.findUnique({
@@ -366,7 +370,7 @@ export const initializaSocket = (server: Httpserver) => {
                             };
                         }
                     } catch (dbError) {
-                        console.warn("⚠️️ No se pudo consultar prisma.user para el conductor:", dbError);
+                        console.warn("⚠ No se pudo consultar prisma.user para el conductor:", dbError);
                     }
                 }
                 const rawDriverImage = driverObj?.image || data?.driver_image || data?.image || "";
