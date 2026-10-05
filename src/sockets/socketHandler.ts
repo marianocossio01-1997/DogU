@@ -143,13 +143,10 @@ export const initializaSocket = (server: Httpserver) => {
                             }
                         });
                         if (userDb) {
-                            clientObj = {
-                                ...clientObj,
-                                ...userDb
-                            };
+                            clientObj = { ...clientObj, ...userDb };
                         }
                     } catch (dbError) {
-                        console.warn("⚠ No se pudo consultar prisma.user directamente:", dbError);
+                        console.warn("⚠️ No se pudo consultar prisma.user directamente:", dbError);
                     }
                 }
                 const rawImage = clientObj?.image || data?.client_image || data?.image || "";
@@ -158,10 +155,34 @@ export const initializaSocket = (server: Httpserver) => {
                     ...clientObj,
                     image: finalImageUrl
                 };
-                const pickupLat = Number(data?.pickupLat ?? data?.pickup_lat ?? data?.pickup_position?.x ?? 0.0);
-                const pickupLng = Number(data?.pickupLng ?? data?.pickup_lng ?? data?.pickup_position?.y ?? 0.0);
-                const destLat = Number(data?.destinationLat ?? data?.destination_lat ?? data?.destination_position?.x ?? 0.0);
-                const destLng = Number(data?.destinationLng ?? data?.destination_lng ?? data?.destination_position?.y ?? 0.0);
+                const pickupLat = Number(
+                    data?.pickupLat ?? 
+                    data?.pickup_lat ?? 
+                    data?.pickup_position?.lat ?? 
+                    data?.pickup_position?.x ?? 
+                    0.0
+                );
+                const pickupLng = Number(
+                    data?.pickupLng ?? 
+                    data?.pickup_lng ?? 
+                    data?.pickup_position?.lng ?? 
+                    data?.pickup_position?.y ?? 
+                    0.0
+                );
+                const destLat = Number(
+                    data?.destinationLat ?? 
+                    data?.destination_lat ?? 
+                    data?.destination_position?.lat ?? 
+                    data?.destination_position?.x ?? 
+                    0.0
+                );
+                const destLng = Number(
+                    data?.destinationLng ?? 
+                    data?.destination_lng ?? 
+                    data?.destination_position?.lng ?? 
+                    data?.destination_position?.y ?? 
+                    0.0
+                );
                 const clientRequest = {
                     ...data,
                     "id": Number(idRequest),
@@ -176,16 +197,18 @@ export const initializaSocket = (server: Httpserver) => {
                     "pickupLng": pickupLng,
                     "destinationLat": destLat,
                     "destinationLng": destLng,
-                    "pickup_position": data?.pickup_position || { x: pickupLat, y: pickupLng },
-                    "destination_position": data?.destination_position || { x: destLat, y: destLng }
+                    "pickup_position": { x: pickupLat, y: pickupLng, lat: pickupLat, lng: pickupLng },
+                    "destination_position": { x: destLat, y: destLng, lat: destLat, lng: destLng }
                 };
-
+                console.log(`📍 Coordenadas de búsqueda recibidas: Pickup (${pickupLat}, ${pickupLng})`);
                 if (!isNaN(pickupLat) && !isNaN(pickupLng) && pickupLat !== 0.0 && pickupLng !== 0.0) {
                     let notifiedCount = 0;
                     for (const [socketId, driverId] of socketToDriverMap.entries()) {
                         const driverPos = activeDriversMap.get(driverId);
                         if (driverPos && (Date.now() - driverPos.updatedAt < 10 * 60 * 1000)) {
                             const distanceKm = getDistanceInKm(pickupLat, pickupLng, driverPos.lat, driverPos.lng);
+                            console.log(`📏 Distancia al conductor #${driverId}: ${distanceKm.toFixed(2)} km`);
+
                             if (distanceKm <= 5.0) {
                                 io.to(socketId).emit("created_client_request", clientRequest);
                                 notifiedCount++;
