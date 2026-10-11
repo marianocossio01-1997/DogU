@@ -16,8 +16,9 @@ import chatMessageRouter from "./routes/chat_message.routes.js";
 import countryConfigRouter from "./routes/countryConfigRoutes.js"; 
 import driverWalletRouter from "./routes/driver_wallet.routes.js";
 import userCardRouter from "./routes/user_card.routes.js";
-import withdrawalRoutes from './routes/WithdrawalRoutes.js'
+import withdrawalRoutes from './routes/WithdrawalRoutes.js';
 import paymentRoutes from './routes/PaymentRoutes.js';
+import cancellationRouter from './routes/cancellation.routes.js'; // <-- IMPORTADO
 import { initializaSocket } from './sockets/socketHandler.js';
 
 dotenv.config();
@@ -49,7 +50,7 @@ app.use("/driver_wallet", driverWalletRouter);
 app.use("/user-cards", userCardRouter);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/withdrawals', withdrawalRoutes);
-
+app.use('/cancellation', cancellationRouter);
 app.get("/", (req, res) => {
   res.json({ message: "BIENVENIDOS A TODOS" });
 });

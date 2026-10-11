@@ -12,6 +12,7 @@ import type {
 } from '../validators/client_request.validator.js';
 import type { ClientRequestStatus } from '../generated/prisma/enums.js';
 import { getIO } from '../sockets/socketHandler.js';
+import { TransactionType } from '@prisma/client';
 
 const normalizeBigInt = (obj: any) => JSON.parse(
     JSON.stringify(obj, (_, value) => typeof value === 'bigint' ? Number(value) : value)
@@ -97,7 +98,6 @@ export const createClientRequest = async (data: CreateClientRequestInput) => {
             `;
             return row?.id ? Number(row?.id) : null;
         });
-
         if (!requestId) {
             throw new AppError('No se pudo obtener el ID de la solicitud creada', 500);
         }
@@ -120,6 +120,9 @@ export const getByClientRequestCreated = async (id: number) => {
             CR.pickup_description,
             CR.destination_description,
             CR.status,
+            CR.cancelled_by,
+            CR.cancellation_reason,
+            CR.cancellation_fee,
             CR.updated_at,
             JSON_OBJECT(
                 'x', ST_Y(pickup_position),
@@ -173,6 +176,9 @@ export const getByClientRequest = async (id: number) => {
             CR.pickup_description,
             CR.destination_description,
             CR.status,
+            CR.cancelled_by,
+            CR.cancellation_reason,
+            CR.cancellation_fee,
             CR.updated_at,
             CR.client_rating,
             CR.driver_rating,
@@ -254,6 +260,7 @@ export const assignDriver = async (data: AssignDriverInput) => {
     const driverEarnings = totalFare * (1 - commissionRate);
     let paymentId: string | null = null;
     let paymentStatus: 'PENDING' | 'PAID' = 'PENDING';
+
     if (paymentMethod === 'CARD') {
         let userCard = null;
         if (data.id_card) {
@@ -304,10 +311,9 @@ export const assignDriver = async (data: AssignDriverInput) => {
             payment_id: paymentId
         }
     });
-
     return updatedDriverAssigned;
 };
-export const updateStatus = async (data: UpdateClientRequestInput) => {
+export const updateStatus = async (data: UpdateClientRequestInput & { cancelled_by?: 'CLIENT' | 'DRIVER', cancellation_reason?: string }) => {
     const clientRequest = await prisma.clientRequests.findUnique({
         where: { id: data.id }
     });
@@ -315,6 +321,80 @@ export const updateStatus = async (data: UpdateClientRequestInput) => {
         throw new AppError(`La solicitud de viaje no existe`, 404);
     }
     const newStatus = data.status as ClientRequestStatus;
+    if (newStatus === 'CANCELLED') {
+        const cancelledBy = data.cancelled_by || 'CLIENT';
+        const cancellationReason = data.cancellation_reason || 'Cancelado por el usuario';
+        const fareToCalculate = clientRequest.fare_assigned ?? clientRequest.fare_offered ?? 0;
+        const CANCELLATION_RATE = 0.15;
+        const cancellationFee = Number((fareToCalculate * CANCELLATION_RATE).toFixed(2));
+        const updatedClientRequest = await prisma.clientRequests.update({
+            where: { id: data.id },
+            data: {
+                status: 'CANCELLED',
+                cancelled_by: cancelledBy,
+                cancellation_reason: cancellationReason,
+                cancellation_fee: cancellationFee
+            }
+        });
+        if (clientRequest.id_driver_assigned) {
+            const driverWallet = await prisma.driverWallet.findUnique({
+                where: { id_driver: clientRequest.id_driver_assigned }
+            });
+            if (driverWallet) {
+                let newBalance = driverWallet.balance;
+                if (cancelledBy === 'CLIENT') {
+                    const wallet = await prisma.driverWallet.update({
+                        where: { id_driver: clientRequest.id_driver_assigned },
+                        data: { balance: { increment: cancellationFee } }
+                    });
+                    newBalance = wallet.balance;
+
+                    await prisma.walletTransaction.create({
+                        data: {
+                            id_driver_wallet: clientRequest.id_driver_assigned,
+                            id_client_request: clientRequest.id,
+                            amount: cancellationFee,
+                            type: TransactionType.CANCELLATION_FEE,
+                            description: `Compensación por cancelación de cliente (15% del viaje #${clientRequest.id})`
+                        }
+                    });
+                } else if (cancelledBy === 'DRIVER') {
+                    const wallet = await prisma.driverWallet.update({
+                        where: { id_driver: clientRequest.id_driver_assigned },
+                        data: { balance: { decrement: cancellationFee } }
+                    });
+                    newBalance = wallet.balance;
+
+                    await prisma.walletTransaction.create({
+                        data: {
+                            id_driver_wallet: clientRequest.id_driver_assigned,
+                            id_client_request: clientRequest.id,
+                            amount: -cancellationFee,
+                            type: TransactionType.CANCELLATION_FEE,
+                            description: `Penalización por cancelación de viaje #${clientRequest.id} (15%)`
+                        }
+                    });
+                }
+                try {
+                    const io = getIO();
+                    io.emit(`wallet_updated/${clientRequest.id_driver_assigned}`, {
+                        id_driver: clientRequest.id_driver_assigned,
+                        new_balance: Number(newBalance)
+                    });
+                } catch (socketErr) {
+                    console.warn("⚠️ Error emitiendo evento de billetera en Socket:", socketErr);
+                }
+            }
+        }
+        try {
+            const io = getIO();
+            io.emit(`new_status_trip/${data.id}`, updatedClientRequest);
+            io.emit("client_request_cancelled", updatedClientRequest);
+        } catch (socketErr) {
+            console.warn("⚠️ Error emitiendo cambio de estado a cancelado:", socketErr);
+        }
+        return updatedClientRequest;
+    }
     const updatedClientRequest = await prisma.clientRequests.update({
         where: { id: data.id },
         data: {
@@ -342,6 +422,7 @@ export const updateStatus = async (data: UpdateClientRequestInput) => {
             console.warn("⚠️ No se pudo emitir evento 'wallet_updated' por Socket:", err);
         }
     }
+
     return updatedClientRequest;
 };
 export const updateClientRating = async (data: UpdateClientRatingInput) => {
@@ -481,6 +562,9 @@ export const getNearbyClientRequests = async (driverLat: number, driverLng: numb
                 CR.pickup_description,
                 CR.destination_description,
                 CR.status,
+                CR.cancelled_by,
+                CR.cancellation_reason,
+                CR.cancellation_fee,
                 CR.updated_at,
                 JSON_OBJECT(
                     'x', ST_Y(pickup_position),
@@ -576,6 +660,9 @@ export const getByClientAssigned = async (id_client: number) => {
             CR.pickup_description,
             CR.destination_description,
             CR.status,
+            CR.cancelled_by,
+            CR.cancellation_reason,
+            CR.cancellation_fee,
             CR.updated_at,
             CR.client_rating,
             CR.driver_rating,
@@ -657,6 +744,9 @@ export const getByDriverAssigned = async (id_driver_assigned: number) => {
             CR.pickup_description,
             CR.destination_description,
             CR.status,
+            CR.cancelled_by,
+            CR.cancellation_reason,
+            CR.cancellation_fee,
             CR.updated_at,
             CR.client_rating,
             CR.driver_rating,

@@ -39,6 +39,7 @@ export const initializaSocket = (server: Httpserver) => {
     });
     io.on("connection", (socket: Socket) => {
         console.log("🟢 Cliente/Conductor conectado a Socket.io:", socket.id);
+
         socket.on("message", (data: any) => {
             console.log("Mensaje recibido:", data);
             io.emit("new_message", "Saludos desde el servidor");
@@ -49,6 +50,7 @@ export const initializaSocket = (server: Httpserver) => {
                 const idSender = data?.id_sender || data?.idSender;
                 const idReceiver = data?.id_receiver || data?.idReceiver;
                 const message = data?.message;
+
                 if (!idClientRequest || !idSender || !idReceiver || !message) {
                     console.warn("⚠️ Evento 'send_message' incompleto recibido:", data);
                     return;
@@ -63,6 +65,7 @@ export const initializaSocket = (server: Httpserver) => {
                 const channel = `message_received/${idClientRequest}`;
                 console.log(`💬 Retransmitiendo mensaje a '${channel}':`, message);
                 io.emit(channel, payload);
+
                 await prisma.chatMessage.create({
                     data: {
                         id_client_request: Number(idClientRequest),
@@ -115,6 +118,7 @@ export const initializaSocket = (server: Httpserver) => {
                     lat: Number(d.lat),
                     lng: Number(d.lng)
                 }));
+
                 socket.emit("nearby_drivers", formattedDrivers);
             } catch (error) {
                 console.error("🚨 Error al procesar 'get_nearby_drivers':", error);
@@ -126,6 +130,7 @@ export const initializaSocket = (server: Httpserver) => {
                 const idRequest = data?.id_client_request || data?.id;
                 const idClient = data?.id_client || data?.client?.id || data?.idClient;
                 let clientObj = data?.client || {};
+
                 if (idClient) {
                     try {
                         const userDb = await prisma.user.findUnique({
@@ -151,6 +156,7 @@ export const initializaSocket = (server: Httpserver) => {
                     ...clientObj,
                     image: finalImageUrl
                 };
+
                 const pickupLat = Number(
                     data?.pickup_lat ??
                     data?.pickupLat ??
@@ -239,6 +245,7 @@ export const initializaSocket = (server: Httpserver) => {
                 const requestDb = await prisma.clientRequests.findUnique({
                     where: { id: idClientRequest }
                 });
+
                 if (requestDb) {
                     const reqAny = requestDb as any;
                     const idClient = reqAny?.id_client || reqAny?.idClient;
@@ -326,23 +333,98 @@ export const initializaSocket = (server: Httpserver) => {
         socket.on("cancel_client_request", async (data: any) => {
             try {
                 const idClientRequest = Number(data?.id_client_request || data?.idClientRequest || data?.id);
-                if (!idClientRequest) return;
-                console.log(`❌ Cancelando solicitud de viaje #${idClientRequest}...`);
-                try {
-                    await prisma.clientRequests.update({
-                        where: { id: idClientRequest },
-                        data: { status: "CANCELLED" }
-                    });
-                } catch (dbError) {
-                    console.warn("⚠️ No se pudo actualizar el status a CANCELLED en BD:", dbError);
-                }
+                const cancelledBy: "CLIENT" | "DRIVER" = data?.cancelled_by || data?.cancelledBy || "CLIENT";
+                const cancellationReason = data?.cancellation_reason || data?.cancellationReason || "Cancelado desde la aplicación";
 
+                if (!idClientRequest) {
+                    console.warn("⚠️ Evento 'cancel_client_request' recibido sin id_client_request válido");
+                    return;
+                }
+                console.log(`❌ Cancelando viaje #${idClientRequest} por ${cancelledBy}...`);
+                const result = await prisma.$transaction(async (tx) => {
+                    const trip = await tx.clientRequests.findUnique({
+                        where: { id: idClientRequest }
+                    });
+                    if (!trip) throw new Error("El viaje no existe");
+                    const fareToCalculate = trip.fare_assigned ?? trip.fare_offered ?? 0;
+                    const CANCELLATION_RATE = 0.15; // 15%
+                    const cancellationFee = Number((fareToCalculate * CANCELLATION_RATE).toFixed(2));
+                    const updatedTrip = await tx.clientRequests.update({
+                        where: { id: idClientRequest },
+                        data: {
+                            status: "CANCELLED",
+                            cancelled_by: cancelledBy,
+                            cancellation_reason: cancellationReason,
+                            cancellation_fee: cancellationFee
+                        }
+                    });
+                    let newDriverWalletBalance: number | null = null;
+                    if (trip.id_driver_assigned) {
+                        const driverWallet = await tx.driverWallet.findUnique({
+                            where: { id_driver: trip.id_driver_assigned }
+                        });
+                        if (driverWallet) {
+                            if (cancelledBy === "CLIENT") {
+                                const updatedWallet = await tx.driverWallet.update({
+                                    where: { id_driver: trip.id_driver_assigned },
+                                    data: { balance: { increment: cancellationFee } }
+                                });
+                                newDriverWalletBalance = updatedWallet.balance;
+
+                                await tx.walletTransaction.create({
+                                    data: {
+                                        id_driver_wallet: trip.id_driver_assigned,
+                                        id_client_request: trip.id,
+                                        amount: cancellationFee,
+                                        type: TransactionType.CANCELLATION_FEE,
+                                        description: `Compensación por cancelación del cliente (15% del viaje #${trip.id})`
+                                    }
+                                });
+                            } else if (cancelledBy === "DRIVER") {
+                                const updatedWallet = await tx.driverWallet.update({
+                                    where: { id_driver: trip.id_driver_assigned },
+                                    data: { balance: { decrement: cancellationFee } }
+                                });
+                                newDriverWalletBalance = updatedWallet.balance;
+                                await tx.walletTransaction.create({
+                                    data: {
+                                        id_driver_wallet: trip.id_driver_assigned,
+                                        id_client_request: trip.id,
+                                        amount: -cancellationFee,
+                                        type: TransactionType.CANCELLATION_FEE,
+                                        description: `Penalización por cancelación de viaje #${trip.id} (15%)`
+                                    }
+                                });
+                            }
+                        }
+                    }
+                    return { updatedTrip, cancellationFee, newDriverWalletBalance, idDriverAssigned: trip.id_driver_assigned };
+                });
+                const cancelPayload = {
+                    id_client_request: idClientRequest,
+                    id: idClientRequest,
+                    status: "CANCELLED",
+                    cancelled_by: cancelledBy,
+                    cancellation_reason: cancellationReason,
+                    cancellation_fee: result.cancellationFee
+                };
+                io.emit("client_request_cancelled", cancelPayload);
+                io.emit(`new_status_trip/${idClientRequest}`, cancelPayload);
+                if (result.idDriverAssigned && result.newDriverWalletBalance !== null) {
+                    io.emit(`wallet_updated/${result.idDriverAssigned}`, {
+                        id_driver: result.idDriverAssigned,
+                        new_balance: result.newDriverWalletBalance
+                    });
+                }
+            } catch (error) {
+                console.error("🚨 Error al procesar 'cancel_client_request' en Socket:", error);
+                const idClientRequest = Number(data?.id_client_request || data?.id);
                 io.emit("client_request_cancelled", {
                     id_client_request: idClientRequest,
-                    id: idClientRequest
+                    id: idClientRequest,
+                    status: "CANCELLED",
+                    cancelled_by: data?.cancelled_by || "CLIENT"
                 });
-            } catch (error) {
-                console.error("🚨 Error al procesar 'cancel_client_request':", error);
             }
         });
         socket.on("new_driver_offer", async (data: any) => {
@@ -415,7 +497,6 @@ export const initializaSocket = (server: Httpserver) => {
             };
             console.log(`🚕 Nuevo conductor asignado (${idDriver}) para viaje:`, clientRequest);
             io.emit(`driver_assigned/${idDriver}`, clientRequest);
-
             if (idClientRequest) {
                 io.emit('trip_assigned_to_other', {
                     id_client_request: Number(idClientRequest),
