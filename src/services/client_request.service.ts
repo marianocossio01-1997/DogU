@@ -260,7 +260,6 @@ export const assignDriver = async (data: AssignDriverInput) => {
     const driverEarnings = totalFare * (1 - commissionRate);
     let paymentId: string | null = null;
     let paymentStatus: 'PENDING' | 'PAID' = 'PENDING';
-
     if (paymentMethod === 'CARD') {
         let userCard = null;
         if (data.id_card) {
@@ -543,6 +542,7 @@ export const getTimeAndDistance = async (
         currency_symbol: currencySymbol,
         exchange_rate: exchangeRate,
         recommended_value: recommendedValueLocal,
+        recommendedValue: recommendedValueLocal,
         origin_addresses: body.origin_addresses?.[0] ?? 'Origen',
         destination_addresses: body.destination_addresses?.[0] ?? 'Destino',
     };
