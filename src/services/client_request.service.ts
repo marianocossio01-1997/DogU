@@ -421,7 +421,6 @@ export const updateStatus = async (data: UpdateClientRequestInput & { cancelled_
             console.warn("⚠️ No se pudo emitir evento 'wallet_updated' por Socket:", err);
         }
     }
-
     return updatedClientRequest;
 };
 export const updateClientRating = async (data: UpdateClientRatingInput) => {
