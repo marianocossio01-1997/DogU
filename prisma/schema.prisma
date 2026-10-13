@@ -86,7 +86,6 @@ model PricingConfig {
   country               CountryConfig @relation(fields: [id_country], references: [id], onDelete: Cascade, onUpdate: Cascade)
   created_at            DateTime      @default(now())
   updated_at            DateTime      @updatedAt
-
   @@map("pricing_configs")
 }
 enum PaymentMethod {
