@@ -347,7 +347,7 @@ export const initializaSocket = (server: Httpserver) => {
                     });
                     if (!trip) throw new Error("El viaje no existe");
                     const fareToCalculate = trip.fare_assigned ?? trip.fare_offered ?? 0;
-                    const CANCELLATION_RATE = 0.15; // 15%
+                    const CANCELLATION_RATE = 0.15;
                     const cancellationFee = Number((fareToCalculate * CANCELLATION_RATE).toFixed(2));
                     const updatedTrip = await tx.clientRequests.update({
                         where: { id: idClientRequest },
