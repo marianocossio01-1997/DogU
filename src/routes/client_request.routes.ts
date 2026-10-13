@@ -2,7 +2,7 @@ import { Router } from 'express';
 import * as clientRequestController from '../controllers/client_request.controller.js';
 
 const router = Router();
-router.get('/time-and-distance', clientRequestController.getTimeAndDistance);
+router.get('/time_and_distance', clientRequestController.getTimeAndDistance);
 router.put('/updateDriverAssigned', clientRequestController.assignDriver);
 router.put('/update_status', clientRequestController.updateClientRequest);
 router.put('/update_client_rating', clientRequestController.updateClientRating);

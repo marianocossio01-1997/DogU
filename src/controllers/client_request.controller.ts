@@ -95,7 +95,6 @@ export const getTimeAndDistance = async (req: Request, res: Response, next: Next
         const destinationLat = Number(req.params.destination_lat ?? req.query.destinationLat);
         const destinationLng = Number(req.params.destination_lng ?? req.query.destinationLng);
         const countryCode = (req.params.country_code ?? req.query.countryCode ?? req.query.country_code) as string | undefined;
-
         if (isNaN(originLat) || isNaN(originLng) || isNaN(destinationLat) || isNaN(destinationLng)) {
             return res.status(400).json({ message: "Las coordenadas de origen y destino son requeridas y deben ser números válidos" });
         }
