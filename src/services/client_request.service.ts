@@ -510,25 +510,25 @@ export const getTimeAndDistance = async (
                 include: { pricing_configs: true }
             });
         } catch (dbErr) {
-            console.error("🚨 Error al consultar countryConfig en BD:", dbErr);
+            console.error("🚨 Error consultando countryConfig en BD:", dbErr);
         }
     }
-    if (!countryConfig || !countryConfig.is_active) {
-        console.warn(`⚠️ No se encontró configuración activa en BD para '${targetCountryCode}'. Aplicando fallback 'US'.`);
+    if (!countryConfig || !countryConfig.is_active || !countryConfig.pricing_configs?.length) {
+        console.warn(`⚠️ No se encontró pricing activo en BD para '${targetCountryCode}'. Aplicando fallback 'US'.`);
         try {
             countryConfig = await prisma.countryConfig.findFirst({
                 where: { country_code: 'US', is_active: true },
                 include: { pricing_configs: true }
             });
         } catch (dbErr) {
-            console.error("🚨 Error al consultar fallback 'US' en BD:", dbErr);
+            console.error("🚨 Error consultando fallback 'US' en BD:", dbErr);
         }
     }
     const pricingConfig = countryConfig?.pricing_configs?.[0];
     const pricing = {
-        base_fare_usd: pricingConfig?.base_fare_usd ?? 1.0,
-        km_value_usd: pricingConfig?.km_value_usd ?? 1.1,
-        min_value_usd: pricingConfig?.min_value_usd ?? 0.2
+        base_fare_usd: pricingConfig?.base_fare_usd ?? 1.5,
+        km_value_usd: pricingConfig?.km_value_usd ?? 0.5,
+        min_value_usd: pricingConfig?.min_value_usd ?? 0.1
     };
     const exchangeRate = countryConfig?.exchange_rate ?? 1.0;
     const currencyCode = countryConfig?.currency_code ?? 'USD';
@@ -536,7 +536,6 @@ export const getTimeAndDistance = async (
     const resolvedCountryCode = countryConfig?.country_code ?? 'US';
     const totalUsd = pricing.base_fare_usd + (km * pricing.km_value_usd) + (minutes * pricing.min_value_usd);
     const recommendedValueLocal = Math.round(totalUsd * exchangeRate);
-
     return {
         distance: {
             text: element.distance.text,
