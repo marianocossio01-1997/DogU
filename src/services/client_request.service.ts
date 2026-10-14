@@ -482,7 +482,6 @@ export const getTimeAndDistance = async (
     }
     const body = response.data;
     console.log("📡 Google Distance Matrix Status:", body.status);
-
     if (body.status !== 'OK') {
         console.error("🚨 Google API devolvió estatus no OK:", body.error_message || body.status);
         throw new AppError(`Respuesta no válida del API de Google: ${body.status}`, 500);
@@ -505,17 +504,25 @@ export const getTimeAndDistance = async (
     }
     let countryConfig = null;
     if (targetCountryCode) {
-        countryConfig = await prisma.countryConfig.findUnique({
-            where: { country_code: targetCountryCode },
-            include: { pricing_configs: true }
-        });
+        try {
+            countryConfig = await prisma.countryConfig.findUnique({
+                where: { country_code: targetCountryCode },
+                include: { pricing_configs: true }
+            });
+        } catch (dbErr) {
+            console.error("🚨 Error al consultar countryConfig en BD:", dbErr);
+        }
     }
-    if (!countryConfig || !countryConfig.is_active || !countryConfig.pricing_configs?.length) {
-        console.warn(`⚠️ No se encontró configuración activa en BD para '${targetCountryCode}'. Aplicando fallback 'US' (USD).`);
-        countryConfig = await prisma.countryConfig.findFirst({
-            where: { country_code: 'US', is_active: true },
-            include: { pricing_configs: true }
-        });
+    if (!countryConfig || !countryConfig.is_active) {
+        console.warn(`⚠️ No se encontró configuración activa en BD para '${targetCountryCode}'. Aplicando fallback 'US'.`);
+        try {
+            countryConfig = await prisma.countryConfig.findFirst({
+                where: { country_code: 'US', is_active: true },
+                include: { pricing_configs: true }
+            });
+        } catch (dbErr) {
+            console.error("🚨 Error al consultar fallback 'US' en BD:", dbErr);
+        }
     }
     const pricingConfig = countryConfig?.pricing_configs?.[0];
     const pricing = {
@@ -529,6 +536,7 @@ export const getTimeAndDistance = async (
     const resolvedCountryCode = countryConfig?.country_code ?? 'US';
     const totalUsd = pricing.base_fare_usd + (km * pricing.km_value_usd) + (minutes * pricing.min_value_usd);
     const recommendedValueLocal = Math.round(totalUsd * exchangeRate);
+
     return {
         distance: {
             text: element.distance.text,
