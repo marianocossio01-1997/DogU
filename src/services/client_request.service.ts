@@ -482,6 +482,7 @@ export const getTimeAndDistance = async (
     }
     const body = response.data;
     console.log("📡 Google Distance Matrix Status:", body.status);
+
     if (body.status !== 'OK') {
         console.error("🚨 Google API devolvió estatus no OK:", body.error_message || body.status);
         throw new AppError(`Respuesta no válida del API de Google: ${body.status}`, 500);
@@ -510,7 +511,7 @@ export const getTimeAndDistance = async (
         });
     }
     if (!countryConfig || !countryConfig.is_active || !countryConfig.pricing_configs?.length) {
-        console.warn(`⚠️ No se encontró configuración completa para '${targetCountryCode}'. Aplicando fallback por defecto 'US' (USD).`);
+        console.warn(`⚠️ No se encontró configuración activa en BD para '${targetCountryCode}'. Aplicando fallback 'US' (USD).`);
         countryConfig = await prisma.countryConfig.findFirst({
             where: { country_code: 'US', is_active: true },
             include: { pricing_configs: true }
@@ -520,7 +521,7 @@ export const getTimeAndDistance = async (
     const pricing = {
         base_fare_usd: pricingConfig?.base_fare_usd ?? 1.0,
         km_value_usd: pricingConfig?.km_value_usd ?? 1.1,
-        min_value_usd: pricingConfig?.min_value_usd ?? 0.9
+        min_value_usd: pricingConfig?.min_value_usd ?? 0.2
     };
     const exchangeRate = countryConfig?.exchange_rate ?? 1.0;
     const currencyCode = countryConfig?.currency_code ?? 'USD';

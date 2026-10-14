@@ -156,7 +156,6 @@ export const initializaSocket = (server: Httpserver) => {
                     ...clientObj,
                     image: finalImageUrl
                 };
-
                 const pickupLat = Number(
                     data?.pickup_lat ??
                     data?.pickupLat ??
@@ -245,7 +244,6 @@ export const initializaSocket = (server: Httpserver) => {
                 const requestDb = await prisma.clientRequests.findUnique({
                     where: { id: idClientRequest }
                 });
-
                 if (requestDb) {
                     const reqAny = requestDb as any;
                     const idClient = reqAny?.id_client || reqAny?.idClient;
@@ -335,7 +333,6 @@ export const initializaSocket = (server: Httpserver) => {
                 const idClientRequest = Number(data?.id_client_request || data?.idClientRequest || data?.id);
                 const cancelledBy: "CLIENT" | "DRIVER" = data?.cancelled_by || data?.cancelledBy || "CLIENT";
                 const cancellationReason = data?.cancellation_reason || data?.cancellationReason || "Cancelado desde la aplicación";
-
                 if (!idClientRequest) {
                     console.warn("⚠️ Evento 'cancel_client_request' recibido sin id_client_request válido");
                     return;
