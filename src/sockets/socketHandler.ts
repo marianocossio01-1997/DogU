@@ -39,7 +39,6 @@ export const initializaSocket = (server: Httpserver) => {
     });
     io.on("connection", (socket: Socket) => {
         console.log("🟢 Cliente/Conductor conectado a Socket.io:", socket.id);
-
         socket.on("message", (data: any) => {
             console.log("Mensaje recibido:", data);
             io.emit("new_message", "Saludos desde el servidor");
@@ -50,7 +49,6 @@ export const initializaSocket = (server: Httpserver) => {
                 const idSender = data?.id_sender || data?.idSender;
                 const idReceiver = data?.id_receiver || data?.idReceiver;
                 const message = data?.message;
-
                 if (!idClientRequest || !idSender || !idReceiver || !message) {
                     console.warn("⚠️ Evento 'send_message' incompleto recibido:", data);
                     return;
@@ -118,7 +116,6 @@ export const initializaSocket = (server: Httpserver) => {
                     lat: Number(d.lat),
                     lng: Number(d.lng)
                 }));
-
                 socket.emit("nearby_drivers", formattedDrivers);
             } catch (error) {
                 console.error("🚨 Error al procesar 'get_nearby_drivers':", error);
@@ -130,7 +127,6 @@ export const initializaSocket = (server: Httpserver) => {
                 const idRequest = data?.id_client_request || data?.id;
                 const idClient = data?.id_client || data?.client?.id || data?.idClient;
                 let clientObj = data?.client || {};
-
                 if (idClient) {
                     try {
                         const userDb = await prisma.user.findUnique({
@@ -344,7 +340,7 @@ export const initializaSocket = (server: Httpserver) => {
                     });
                     if (!trip) throw new Error("El viaje no existe");
                     const fareToCalculate = trip.fare_assigned ?? trip.fare_offered ?? 0;
-                    const CANCELLATION_RATE = 0.15;
+                    const CANCELLATION_RATE = 0.15; // 15%
                     const cancellationFee = Number((fareToCalculate * CANCELLATION_RATE).toFixed(2));
                     const updatedTrip = await tx.clientRequests.update({
                         where: { id: idClientRequest },
@@ -367,7 +363,6 @@ export const initializaSocket = (server: Httpserver) => {
                                     data: { balance: { increment: cancellationFee } }
                                 });
                                 newDriverWalletBalance = updatedWallet.balance;
-
                                 await tx.walletTransaction.create({
                                     data: {
                                         id_driver_wallet: trip.id_driver_assigned,
@@ -494,6 +489,7 @@ export const initializaSocket = (server: Httpserver) => {
             };
             console.log(`🚕 Nuevo conductor asignado (${idDriver}) para viaje:`, clientRequest);
             io.emit(`driver_assigned/${idDriver}`, clientRequest);
+
             if (idClientRequest) {
                 io.emit('trip_assigned_to_other', {
                     id_client_request: Number(idClientRequest),
@@ -546,6 +542,7 @@ export const initializaSocket = (server: Httpserver) => {
                         );
                         const commissionRate = 0.20; 
                         const commissionAmount = totalFare * commissionRate;
+
                         if (commissionAmount > 0) {
                             const walletRaw = await prisma.driverWallet.upsert({
                                 where: { id_driver: idDriver },
@@ -562,6 +559,7 @@ export const initializaSocket = (server: Httpserver) => {
                             const walletAny = walletRaw as any;
                             const walletId = walletAny?.id || walletAny?.id_wallet || walletAny?.id_driver_wallet || idDriver;
                             currentWalletBalance = Number(walletAny.balance);
+
                             await prisma.walletTransaction.create({
                                 data: {
                                     id_driver_wallet: walletId,

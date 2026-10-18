@@ -13,7 +13,7 @@ import driverPositionRouter from "./routes/driver_position.routes.js";
 import driverTripOfferRouter from "./routes/driver_trip_offer.routes.js";
 import driverCarInfoRautes from "./routes/driver_car_info.routes.js";
 import chatMessageRouter from "./routes/chat_message.routes.js";
-import countryConfigRouter from "./routes/countryConfigRoutes.js"; 
+import countryConfigRouter from "./routes/countryConfigRoutes.js"; 
 import driverWalletRouter from "./routes/driver_wallet.routes.js";
 import userCardRouter from "./routes/user_card.routes.js";
 import withdrawalRoutes from './routes/WithdrawalRoutes.js';
@@ -29,10 +29,10 @@ const publicDir = path.join(__dirname, "../public");
 const baseUploadsDir = path.join(publicDir, "uploads");
 const usersUploadsDir = path.join(baseUploadsDir, "users");
 if (!fs.existsSync(baseUploadsDir)) {
-  fs.mkdirSync(baseUploadsDir, { recursive: true });
+  fs.mkdirSync(baseUploadsDir, { recursive: true });
 }
 if (!fs.existsSync(usersUploadsDir)) {
-  fs.mkdirSync(usersUploadsDir, { recursive: true });
+  fs.mkdirSync(usersUploadsDir, { recursive: true });
 }
 app.use(cors());
 app.use(express.json());
@@ -44,20 +44,20 @@ app.use("/drivers-position", driverPositionRouter);
 app.use("/client-requests", clientRequestRouter);
 app.use("/driver-trip-offers", driverTripOfferRouter);
 app.use("/driver-car-info", driverCarInfoRautes);
-app.use("/chat", chatMessageRouter); 
-app.use("/country-config", countryConfigRouter); 
+app.use("/chat", chatMessageRouter); 
+app.use("/country-config", countryConfigRouter); 
 app.use("/driver_wallet", driverWalletRouter);
 app.use("/user-cards", userCardRouter);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/withdrawals', withdrawalRoutes);
 app.use('/cancellation', cancellationRouter);
 app.get("/", (req, res) => {
-  res.json({ message: "BIENVENIDOS A TODOS" });
+  res.json({ message: "BIENVENIDOS A TODOS" });
 });
 app.use(errorHandler);
 const server = http.createServer(app);
 initializaSocket(server);
 const PORT = process.env.PORT || 3000;
 server.listen(Number(PORT), "0.0.0.0", () => {
-  console.log(`Servidor corriendo en el puerto ${PORT}`);
+  console.log(`Servidor corriendo en el puerto ${PORT}`);
 });

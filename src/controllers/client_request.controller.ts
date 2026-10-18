@@ -68,7 +68,6 @@ export const getNearbyClientRequests = async (req: Request, res: Response, next:
     try {
         const driverLat = Number(req.params.driver_lat);
         const driverLng = Number(req.params.driver_lng);
-
         if (isNaN(driverLat) || isNaN(driverLng)) {
             return res.status(400).json({ message: "Las coordenadas de latitud y longitud son inválidas" });
         }

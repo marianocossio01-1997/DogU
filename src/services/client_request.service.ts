@@ -98,6 +98,7 @@ export const createClientRequest = async (data: CreateClientRequestInput) => {
             `;
             return row?.id ? Number(row?.id) : null;
         });
+
         if (!requestId) {
             throw new AppError('No se pudo obtener el ID de la solicitud creada', 500);
         }
@@ -310,6 +311,7 @@ export const assignDriver = async (data: AssignDriverInput) => {
             payment_id: paymentId
         }
     });
+
     return updatedDriverAssigned;
 };
 export const updateStatus = async (data: UpdateClientRequestInput & { cancelled_by?: 'CLIENT' | 'DRIVER', cancellation_reason?: string }) => {
@@ -326,6 +328,7 @@ export const updateStatus = async (data: UpdateClientRequestInput & { cancelled_
         const fareToCalculate = clientRequest.fare_assigned ?? clientRequest.fare_offered ?? 0;
         const CANCELLATION_RATE = 0.15;
         const cancellationFee = Number((fareToCalculate * CANCELLATION_RATE).toFixed(2));
+
         const updatedClientRequest = await prisma.clientRequests.update({
             where: { id: data.id },
             data: {
@@ -347,7 +350,6 @@ export const updateStatus = async (data: UpdateClientRequestInput & { cancelled_
                         data: { balance: { increment: cancellationFee } }
                     });
                     newBalance = wallet.balance;
-
                     await prisma.walletTransaction.create({
                         data: {
                             id_driver_wallet: clientRequest.id_driver_assigned,
@@ -392,6 +394,7 @@ export const updateStatus = async (data: UpdateClientRequestInput & { cancelled_
         } catch (socketErr) {
             console.warn("⚠️ Error emitiendo cambio de estado a cancelado:", socketErr);
         }
+
         return updatedClientRequest;
     }
     const updatedClientRequest = await prisma.clientRequests.update({
@@ -409,6 +412,7 @@ export const updateStatus = async (data: UpdateClientRequestInput & { cancelled_
             total_fare: totalFare,
             payment_method: updatedClientRequest.payment_method
         });
+
         try {
             const io = getIO();
             const newBalance = paymentResult.wallet?.balance ?? 0;
@@ -421,6 +425,7 @@ export const updateStatus = async (data: UpdateClientRequestInput & { cancelled_
             console.warn("⚠️ No se pudo emitir evento 'wallet_updated' por Socket:", err);
         }
     }
+
     return updatedClientRequest;
 };
 export const updateClientRating = async (data: UpdateClientRatingInput) => {
@@ -504,31 +509,22 @@ export const getTimeAndDistance = async (
     }
     let countryConfig = null;
     if (targetCountryCode) {
-        try {
-            countryConfig = await prisma.countryConfig.findUnique({
-                where: { country_code: targetCountryCode },
-                include: { pricing_configs: true }
-            });
-        } catch (dbErr) {
-            console.error("🚨 Error consultando countryConfig en BD:", dbErr);
-        }
+        countryConfig = await prisma.countryConfig.findUnique({
+            where: { country_code: targetCountryCode },
+            include: { pricing_configs: true }
+        });
     }
-    if (!countryConfig || !countryConfig.is_active || !countryConfig.pricing_configs?.length) {
-        console.warn(`⚠️ No se encontró pricing activo en BD para '${targetCountryCode}'. Aplicando fallback 'US'.`);
-        try {
-            countryConfig = await prisma.countryConfig.findFirst({
-                where: { country_code: 'US', is_active: true },
-                include: { pricing_configs: true }
-            });
-        } catch (dbErr) {
-            console.error("🚨 Error consultando fallback 'US' en BD:", dbErr);
-        }
+    if (!countryConfig || !countryConfig.is_active) {
+        console.warn(`⚠️ No se encontró configuración activa para '${targetCountryCode}'. Aplicando fallback por defecto en Dólares 'US'.`);
+        countryConfig = await prisma.countryConfig.findFirst({
+            where: { country_code: 'US', is_active: true },
+            include: { pricing_configs: true }
+        });
     }
-    const pricingConfig = countryConfig?.pricing_configs?.[0];
-    const pricing = {
-        base_fare_usd: pricingConfig?.base_fare_usd ?? 1.5,
-        km_value_usd: pricingConfig?.km_value_usd ?? 0.5,
-        min_value_usd: pricingConfig?.min_value_usd ?? 0.1
+    const pricing = countryConfig?.pricing_configs?.[0] || {
+        base_fare_usd: 1,
+        km_value_usd: 1.1,
+        min_value_usd: 0.09
     };
     const exchangeRate = countryConfig?.exchange_rate ?? 1.0;
     const currencyCode = countryConfig?.currency_code ?? 'USD';
