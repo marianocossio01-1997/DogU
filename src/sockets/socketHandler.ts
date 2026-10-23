@@ -25,11 +25,22 @@ const formatImageUrl = (imagePath: string | null | undefined): string | null => 
     if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
         return cleanPath;
     }
+    const baseUrl = process.env.BASE_URL || process.env.SERVER_URL || `http://${process.env.HOST || '192.168.1.10'}:${process.env.PORT || '3000'}`;
+    const pathWithSlash = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
+    const cleanBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+    return `${cleanBase}${pathWithSlash}`;
+};
+/* const formatImageUrl = (imagePath: string | null | undefined): string | null => {
+    if (!imagePath || imagePath.trim() === '' || imagePath === 'null') return null;
+    const cleanPath = imagePath.trim();
+    if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
+        return cleanPath;
+    }
     const host = process.env.HOST || '192.168.1.10';
     const port = process.env.PORT || '3000';
     const pathWithSlash = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
     return `http://${host}:${port}${pathWithSlash}`;
-};
+}; */
 export const initializaSocket = (server: Httpserver) => {
     io = new Server(server, {
         cors: {
