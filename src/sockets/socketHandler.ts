@@ -20,8 +20,9 @@ const getDistanceInKm = (lat1: number, lon1: number, lat2: number, lon2: number)
     return R * c;
 };
 const formatImageUrl = (imagePath: string | null | undefined): string | null => {
-    if (!imagePath || imagePath.trim() === '' || imagePath === 'null') return null;
-    const cleanPath = imagePath.trim();
+    if (!imagePath || typeof imagePath !== 'string') return null;
+    let cleanPath = imagePath.replace(/\\/g, '/').trim();
+    if (cleanPath === '' || cleanPath === 'null' || cleanPath === 'undefined') return null;
     if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
         return cleanPath;
     }
@@ -30,17 +31,6 @@ const formatImageUrl = (imagePath: string | null | undefined): string | null => 
     const cleanBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
     return `${cleanBase}${pathWithSlash}`;
 };
-/* const formatImageUrl = (imagePath: string | null | undefined): string | null => {
-    if (!imagePath || imagePath.trim() === '' || imagePath === 'null') return null;
-    const cleanPath = imagePath.trim();
-    if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
-        return cleanPath;
-    }
-    const host = process.env.HOST || '192.168.1.10';
-    const port = process.env.PORT || '3000';
-    const pathWithSlash = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
-    return `http://${host}:${port}${pathWithSlash}`;
-}; */
 export const initializaSocket = (server: Httpserver) => {
     io = new Server(server, {
         cors: {
@@ -50,6 +40,7 @@ export const initializaSocket = (server: Httpserver) => {
     });
     io.on("connection", (socket: Socket) => {
         console.log("🟢 Cliente/Conductor conectado a Socket.io:", socket.id);
+
         socket.on("message", (data: any) => {
             console.log("Mensaje recibido:", data);
             io.emit("new_message", "Saludos desde el servidor");
@@ -161,7 +152,8 @@ export const initializaSocket = (server: Httpserver) => {
                 const finalImageUrl = formatImageUrl(rawImage);
                 const updatedClient = {
                     ...clientObj,
-                    image: finalImageUrl
+                    fullname: clientObj?.fullname || clientObj?.name || 'Cliente',
+                    image: finalImageUrl || ""
                 };
                 const pickupLat = Number(
                     data?.pickup_lat ??
@@ -458,7 +450,7 @@ export const initializaSocket = (server: Httpserver) => {
                             };
                         }
                     } catch (dbError) {
-                        console.warn("⚠ No se pudo consultar prisma.user para el conductor:", dbError);
+                        console.warn("⚠️ No se pudo consultar prisma.user para el conductor:", dbError);
                     }
                 }
                 const rawDriverImage = driverObj?.image || data?.driver_image || data?.image || "";
@@ -553,7 +545,6 @@ export const initializaSocket = (server: Httpserver) => {
                         );
                         const commissionRate = 0.20; 
                         const commissionAmount = totalFare * commissionRate;
-
                         if (commissionAmount > 0) {
                             const walletRaw = await prisma.driverWallet.upsert({
                                 where: { id_driver: idDriver },
@@ -570,7 +561,6 @@ export const initializaSocket = (server: Httpserver) => {
                             const walletAny = walletRaw as any;
                             const walletId = walletAny?.id || walletAny?.id_wallet || walletAny?.id_driver_wallet || idDriver;
                             currentWalletBalance = Number(walletAny.balance);
-
                             await prisma.walletTransaction.create({
                                 data: {
                                     id_driver_wallet: walletId,
