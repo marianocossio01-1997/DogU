@@ -148,8 +148,12 @@ export const initializaSocket = (server: Httpserver) => {
                         console.warn("⚠️ No se pudo consultar prisma.user directamente:", dbError);
                     }
                 }
-                const rawImage = clientObj?.image || data?.client_image || data?.clientImage || data?.user_image || data?.image || "";
-                const finalImageUrl = formatImageUrl(rawImage) || "";
+                const incomingImage = data?.client?.image || data?.client_image || data?.image || "";
+                const rawImage = (incomingImage && incomingImage.startsWith('http')) 
+                ? incomingImage 
+                : (clientObj?.image || incomingImage || "");
+                const finalImageUrl = formatImageUrl(rawImage) || rawImage || "";
+            
                 const updatedClient = {
                     id: Number(idClient),
                     fullname: clientObj?.fullname || clientObj?.name || data?.fullname || 'Cliente',
