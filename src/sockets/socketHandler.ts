@@ -148,12 +148,16 @@ export const initializaSocket = (server: Httpserver) => {
                         console.warn("⚠️ No se pudo consultar prisma.user directamente:", dbError);
                     }
                 }
-                const rawImage = clientObj?.image || data?.client_image || data?.image || "";
-                const finalImageUrl = formatImageUrl(rawImage);
+                const rawImage = clientObj?.image || data?.client_image || data?.clientImage || data?.user_image || data?.image || "";
+                const finalImageUrl = formatImageUrl(rawImage) || "";
                 const updatedClient = {
-                    ...clientObj,
-                    fullname: clientObj?.fullname || clientObj?.name || 'Cliente',
-                    image: finalImageUrl || ""
+                    id: Number(idClient),
+                    fullname: clientObj?.fullname || clientObj?.name || data?.fullname || 'Cliente',
+                    phone: clientObj?.phone || data?.phone || '',
+                    image: finalImageUrl,
+                    client_image: finalImageUrl,
+                    clientImage: finalImageUrl,
+                    user_image: finalImageUrl
                 };
                 const pickupLat = Number(
                     data?.pickup_lat ??
@@ -188,8 +192,11 @@ export const initializaSocket = (server: Httpserver) => {
                     "id": Number(idRequest),
                     "id_socket": socket.id,
                     "id_client_request": Number(idRequest),
+                    "id_client": Number(idClient),
                     "client": updatedClient,
-                    "client_image": finalImageUrl || "",
+                    "client_image": finalImageUrl,
+                    "clientImage": finalImageUrl,
+                    "user_image": finalImageUrl,
                     "payment_method": data?.payment_method || "CASH",
                     "payment_status": data?.payment_status || "PENDING",
                     "payment_id": data?.payment_id || null,
@@ -204,7 +211,7 @@ export const initializaSocket = (server: Httpserver) => {
                     "pickup_position": { x: pickupLat, y: pickupLng, lat: pickupLat, lng: pickupLng },
                     "destination_position": { x: destLat, y: destLng, lat: destLat, lng: destLng }
                 };
-                console.log(`📍 Coordenadas de búsqueda recibidas: Pickup (${pickupLat}, ${pickupLng})`);
+                console.log(`📍 Solicitud viaje #${idRequest} emitida por cliente #${idClient} (Imagen: ${finalImageUrl})`);
                 if (!isNaN(pickupLat) && !isNaN(pickupLng) && pickupLat !== 0.0 && pickupLng !== 0.0) {
                     let notifiedCount = 0;
                     for (const [socketId, driverId] of socketToDriverMap.entries()) {
