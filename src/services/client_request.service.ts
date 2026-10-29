@@ -328,7 +328,6 @@ export const updateStatus = async (data: UpdateClientRequestInput & { cancelled_
         const fareToCalculate = clientRequest.fare_assigned ?? clientRequest.fare_offered ?? 0;
         const CANCELLATION_RATE = 0.15;
         const cancellationFee = Number((fareToCalculate * CANCELLATION_RATE).toFixed(2));
-
         const updatedClientRequest = await prisma.clientRequests.update({
             where: { id: data.id },
             data: {
@@ -365,7 +364,6 @@ export const updateStatus = async (data: UpdateClientRequestInput & { cancelled_
                         data: { balance: { decrement: cancellationFee } }
                     });
                     newBalance = wallet.balance;
-
                     await prisma.walletTransaction.create({
                         data: {
                             id_driver_wallet: clientRequest.id_driver_assigned,
@@ -394,7 +392,6 @@ export const updateStatus = async (data: UpdateClientRequestInput & { cancelled_
         } catch (socketErr) {
             console.warn("⚠️ Error emitiendo cambio de estado a cancelado:", socketErr);
         }
-
         return updatedClientRequest;
     }
     const updatedClientRequest = await prisma.clientRequests.update({
@@ -412,7 +409,6 @@ export const updateStatus = async (data: UpdateClientRequestInput & { cancelled_
             total_fare: totalFare,
             payment_method: updatedClientRequest.payment_method
         });
-
         try {
             const io = getIO();
             const newBalance = paymentResult.wallet?.balance ?? 0;
@@ -593,7 +589,7 @@ export const getNearbyClientRequests = async (driverLat: number, driverLng: numb
             WHERE
                 timestampdiff(MINUTE, CR.updated_at, NOW()) < 30 AND status = "CREATED"
             HAVING
-                distance <= 5000
+                distance <= 7000
             ORDER BY 
                 CR.id DESC
         `;
