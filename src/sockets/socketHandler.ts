@@ -223,7 +223,7 @@ export const initializaSocket = (server: Httpserver) => {
                         if (driverPos && (Date.now() - driverPos.updatedAt < 15 * 60 * 1000)) {
                             const distanceKm = getDistanceInKm(pickupLat, pickupLng, driverPos.lat, driverPos.lng);
                             console.log(`📏 Distancia al conductor #${driverId}: ${distanceKm.toFixed(2)} km`);
-                            if (distanceKm <= 5.0) {
+                            if (distanceKm <= 7.0) {
                                 io.to(socketId).emit("created_client_request", clientRequest);
                                 notifiedCount++;
                             }
@@ -316,7 +316,7 @@ export const initializaSocket = (server: Httpserver) => {
                             const driverPos = activeDriversMap.get(driverId);
                             if (driverPos && (Date.now() - driverPos.updatedAt < 15 * 60 * 1000)) {
                                 const distanceKm = getDistanceInKm(pickupLat, pickupLng, driverPos.lat, driverPos.lng);
-                                if (distanceKm <= 5.0) {
+                                if (distanceKm <= 7.0) {
                                     io.to(socketId).emit("created_client_request", payload);
                                     notifiedCount++;
                                 }
