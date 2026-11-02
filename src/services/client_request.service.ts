@@ -197,6 +197,86 @@ export const getByClientRequest = async (id: number) => {
                 'phone', U.phone,
                 'image', U.image
             ) AS client,
+            IF(D.id IS NOT NULL, JSON_OBJECT(
+                'id', D.id,
+                'fullname', D.fullname,
+                'phone', D.phone,
+                'image', D.image
+            ), NULL) AS driver,
+            IF(DCI.id IS NOT NULL, JSON_OBJECT(
+                'brand', DCI.brand,
+                'color', DCI.color,
+                'plate', DCI.plate
+            ), NULL) AS car
+        FROM
+            client_requests AS CR
+        INNER JOIN
+            users AS U ON U.id = CR.id_client
+        LEFT JOIN
+            users AS D ON D.id = CR.id_driver_assigned
+        LEFT JOIN
+            driver_car_info AS DCI ON DCI.id_driver = CR.id_driver_assigned
+        WHERE
+            CR.id = ${id}
+    `;
+
+    if (!rawData.length) return null;
+    const item = rawData[0];
+    const clientObj = parseJsonIfNeeded(item.client) || {};
+    const driverObj = parseJsonIfNeeded(item.driver);
+    const carObj = parseJsonIfNeeded(item.car);
+
+    const formatted = {
+        ...item,
+        pickup_position: parseJsonIfNeeded(item.pickup_position),
+        destination_position: parseJsonIfNeeded(item.destination_position),
+        car: carObj,
+        client: {
+            ...clientObj,
+            image: formatImageUrl(clientObj.image)
+        },
+        driver: driverObj ? {
+            ...driverObj,
+            image: formatImageUrl(driverObj.image)
+        } : null,
+    };
+    return normalizeBigInt(formatted);
+};
+/* export const getByClientRequest = async (id: number) => {
+    const rawData = await prisma.$queryRaw<any[]>`
+        SELECT
+            CR.id,
+            CR.id_client,
+            CR.id_driver_assigned,
+            CR.fare_offered,
+            CR.fare_assigned,
+            CR.platform_fee,
+            CR.driver_earnings,
+            CR.payment_method,
+            CR.payment_status,
+            CR.pickup_description,
+            CR.destination_description,
+            CR.status,
+            CR.cancelled_by,
+            CR.cancellation_reason,
+            CR.cancellation_fee,
+            CR.updated_at,
+            CR.client_rating,
+            CR.driver_rating,
+            JSON_OBJECT(
+                'x', ST_Y(pickup_position),
+                'y', ST_X(pickup_position)
+            ) AS pickup_position,
+            JSON_OBJECT(
+                'x', ST_Y(destination_position),
+                'y', ST_X(destination_position)
+            ) AS destination_position,
+            JSON_OBJECT(
+                'id', U.id,
+                'fullname', U.fullname,
+                'phone', U.phone,
+                'image', U.image
+            ) AS client,
             JSON_OBJECT(
                 'id', D.id,
                 'fullname', D.fullname,
@@ -244,7 +324,7 @@ export const getByClientRequest = async (id: number) => {
         },
     };
     return normalizeBigInt(formatted);
-};
+}; */
 export const assignDriver = async (data: AssignDriverInput) => {
     const clientRequest = await prisma.clientRequests.findUnique({
         where: { id: data.id },
