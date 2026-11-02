@@ -1,5 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import * as clientRequestService from "../services/client_request.service.js"; 
+import prisma from '../database/prismaClient.js';
 
 export const createClientRequest = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -78,14 +79,24 @@ export const getNearbyClientRequests = async (req: Request, res: Response, next:
         next(error);
     }           
 };
-export const getByClientRequest = async (req: Request, res: Response, next: NextFunction) => {
-    try {
-        const id = Number(req.params.id);
-        const result = await clientRequestService.getByClientRequest(id);
-        return res.status(200).json(result);
-    } catch (error) {
-        next(error);
-    }           
+export const getByClientRequest = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const clientRequest = await prisma.clientRequests.findUnique({
+      where: { id: Number(id) },
+      include: {
+        client: true,
+        driver: true,
+        car: true,
+      },
+    });
+    if (!clientRequest) {
+      return res.status(404).json({ message: 'Solicitud no encontrada' });
+    }
+    return res.status(200).json({ data: clientRequest });
+  } catch (error) {
+    return res.status(500).json({ message: 'Error interno del servidor', error });
+  }
 };
 export const getTimeAndDistance = async (req: Request, res: Response, next: NextFunction) => {
     try {
