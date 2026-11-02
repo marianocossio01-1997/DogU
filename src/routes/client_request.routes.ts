@@ -3,25 +3,6 @@ import * as clientRequestController from '../controllers/client_request.controll
 
 const router = Router();
 router.get('/time-and-distance', clientRequestController.getTimeAndDistance);
-router.get('/client/assigned/:id_client', clientRequestController.getByClientAssigned);
-router.get('/driver/assigned/:id_driver_assigned', clientRequestController.getByDriverAssigned);
-router.get('/nearby/:driver_lat/:driver_lng', clientRequestController.getNearbyClientRequests);
-router.get('/detail/:id', clientRequestController.getByClientRequest);
-router.get('/:id', clientRequestController.getByClientRequest);
-router.put('/updateDriverAssigned', clientRequestController.assignDriver);
-router.put('/update_status', clientRequestController.updateClientRequest);
-router.put('/update_client_rating', clientRequestController.updateClientRating);
-router.put('/update_driver_rating', clientRequestController.updateDriverRating);
-router.post('/', clientRequestController.createClientRequest);
-
-export default router;
-
-
-/* import { Router } from 'express';
-import * as clientRequestController from '../controllers/client_request.controller.js';
-
-const router = Router();
-router.get('/time-and-distance', clientRequestController.getTimeAndDistance);
 router.put('/updateDriverAssigned', clientRequestController.assignDriver);
 router.put('/update_status', clientRequestController.updateClientRequest);
 router.put('/update_client_rating', clientRequestController.updateClientRating);
@@ -32,4 +13,4 @@ router.get('/nearby/:driver_lat/:driver_lng', clientRequestController.getNearbyC
 router.get('/detail/:id', clientRequestController.getByClientRequest);
 router.post('/', clientRequestController.createClientRequest);
 
-export default router; */
+export default router; 
