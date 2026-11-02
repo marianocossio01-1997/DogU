@@ -490,7 +490,31 @@ export const initializaSocket = (server: Httpserver) => {
                 });
             }
         });
-        socket.on("new_driver_assigned", (data: any) => {
+        socket.on("new_driver_assigned", async (data: any) => {
+            const idDriver = data?.id_driver;
+            const idClientRequest = data?.id_client_request;
+            try {
+                const fullClientRequest = await prisma.clientRequests.findUnique({
+                    where: { id: Number(idClientRequest) },
+                    include: {
+                        client: true,
+                        driver: true,
+                        car: true,
+                    }
+                });
+                console.log(`🚕 Nuevo conductor asignado (${idDriver}) para viaje:`, idClientRequest);
+                io.emit(`driver_assigned/${idDriver}`, fullClientRequest || { id_client_request: idClientRequest });
+                if (idClientRequest) {
+                    io.emit('trip_assigned_to_other', {
+                        id_client_request: Number(idClientRequest),
+                        id_driver_assigned: Number(idDriver)
+                    });
+                }
+            } catch (error) {
+                console.error("Error al obtener la solicitud en el socket:", error);
+            }
+        });
+        /* socket.on("new_driver_assigned", (data: any) => {
             const idDriver = data?.id_driver;
             const idClientRequest = data?.id_client_request;
             const clientRequest = {
@@ -510,7 +534,7 @@ export const initializaSocket = (server: Httpserver) => {
                     id_driver_assigned: Number(idDriver)
                 });
             }
-        });
+        }); */
         socket.on("trip_change_driver_position", (data: any) => {
             const idClient = data?.id_client;
             const driverPosition = {
