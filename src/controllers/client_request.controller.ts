@@ -88,7 +88,6 @@ export const getNearbyClientRequests = async (req: Request, res: Response, next:
         if (!clientRequest) {
             return res.status(404).json({ message: 'Solicitud no encontrada' });
         }
-
         return res.status(200).json({ data: clientRequest });
     } catch (error) {
         next(error);
