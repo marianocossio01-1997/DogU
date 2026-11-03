@@ -78,25 +78,21 @@ export const getNearbyClientRequests = async (req: Request, res: Response, next:
         console.error("💥 Error en getNearbyClientRequests Controller:", error);
         next(error);
     }           
-};
-export const getByClientRequest = async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const clientRequest = await prisma.clientRequests.findUnique({
-      where: { id: Number(id) },
-      include: {
-        client: true,
-        driver: true,
-        car: true,
-      },
-    });
-    if (!clientRequest) {
-      return res.status(404).json({ message: 'Solicitud no encontrada' });
+};export const getByClientRequest = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const id = Number(req.params.id);
+        if (isNaN(id)) {
+            return res.status(400).json({ message: "ID de solicitud inválido" });
+        }
+        const clientRequest = await clientRequestService.getByClientRequest(id);
+        if (!clientRequest) {
+            return res.status(404).json({ message: 'Solicitud no encontrada' });
+        }
+
+        return res.status(200).json({ data: clientRequest });
+    } catch (error) {
+        next(error);
     }
-    return res.status(200).json({ data: clientRequest });
-  } catch (error) {
-    return res.status(500).json({ message: 'Error interno del servidor', error });
-  }
 };
 export const getTimeAndDistance = async (req: Request, res: Response, next: NextFunction) => {
     try {
