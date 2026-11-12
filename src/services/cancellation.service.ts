@@ -1,12 +1,14 @@
 import prisma from '../database/prismaClient.js';
 import { AppError } from '../utils/AppError.js';
+import { processCardPayment } from './PaymentService.js';
 import type { CancelTripInput } from '../validators/cancellation.validator.js';
 
 export const cancelTrip = async (data: CancelTripInput) => {
     try {
         return await prisma.$transaction(async (tx) => {
             const trip = await tx.clientRequests.findUnique({
-                where: { id: data.id_client_request }
+                where: { id: data.id_client_request },
+                include: { client: true }
             });
             if (!trip) {
                 throw new AppError('El viaje no existe', 404);
@@ -17,9 +19,29 @@ export const cancelTrip = async (data: CancelTripInput) => {
             if (trip.status === 'FINISHED') {
                 throw new AppError('No se puede cancelar un viaje que ya ha finalizado', 400);
             }
-            const fareToCalculate = trip.fare_assigned ?? trip.fare_offered;
+            const fareToCalculate = trip.fare_assigned ?? trip.fare_offered ?? 0;
             const CANCELLATION_RATE = 0.15; 
             const cancellationFee = Number((fareToCalculate * CANCELLATION_RATE).toFixed(2));
+            if (data.cancelled_by === 'CLIENT' && trip.payment_method === 'CARD' && trip.id_card) {
+                const userCard = await tx.userCard.findUnique({
+                    where: { id: trip.id_card }
+                });
+
+                if (userCard) {
+                    try {
+                        await processCardPayment({
+                            token: userCard.card_token,
+                            paymentMethodId: userCard.brand.toLowerCase(),
+                            transactionAmount: cancellationFee,
+                            applicationFee: cancellationFee, 
+                            payerEmail: trip.client.email,
+                            description: `Cargo por cancelación de viaje DogU #${trip.id}`
+                        });
+                    } catch (paymentErr) {
+                        console.error("⚠️ No se pudo cobrar la tarifa de cancelación a la tarjeta del cliente:", paymentErr);
+                    }
+                }
+            }
             const updatedTrip = await tx.clientRequests.update({
                 where: { id: data.id_client_request },
                 data: {
@@ -33,7 +55,6 @@ export const cancelTrip = async (data: CancelTripInput) => {
                 const driverWallet = await tx.driverWallet.findUnique({
                     where: { id_driver: trip.id_driver_assigned }
                 });
-
                 if (driverWallet) {
                     if (data.cancelled_by === 'CLIENT') {
                         await tx.driverWallet.update({

@@ -277,7 +277,7 @@ export const assignDriver = async (data: AssignDriverInput) => {
                 token: userCard.card_token,
                 paymentMethodId: userCard.brand.toLowerCase(),
                 transactionAmount: totalFare,
-                applicationFee: platformFee,
+                applicationFee: platformFee, 
                 payerEmail: clientRequest.client.email,
                 description: `Viaje DogU #${clientRequest.id}`
             });
@@ -310,7 +310,8 @@ export const assignDriver = async (data: AssignDriverInput) => {
 };
 export const updateStatus = async (data: UpdateClientRequestInput & { cancelled_by?: 'CLIENT' | 'DRIVER', cancellation_reason?: string }) => {
     const clientRequest = await prisma.clientRequests.findUnique({
-        where: { id: data.id }
+        where: { id: data.id },
+        include: { client: true }
     });
     if (!clientRequest) {
         throw new AppError(`La solicitud de viaje no existe`, 404);
@@ -322,6 +323,25 @@ export const updateStatus = async (data: UpdateClientRequestInput & { cancelled_
         const fareToCalculate = clientRequest.fare_assigned ?? clientRequest.fare_offered ?? 0;
         const CANCELLATION_RATE = 0.15;
         const cancellationFee = Number((fareToCalculate * CANCELLATION_RATE).toFixed(2));
+        if (cancelledBy === 'CLIENT' && clientRequest.payment_method === 'CARD' && clientRequest.id_card) {
+            const userCard = await prisma.userCard.findUnique({
+                where: { id: clientRequest.id_card }
+            });
+            if (userCard) {
+                try {
+                    await processCardPayment({
+                        token: userCard.card_token,
+                        paymentMethodId: userCard.brand.toLowerCase(),
+                        transactionAmount: cancellationFee,
+                        applicationFee: cancellationFee,
+                        payerEmail: clientRequest.client.email,
+                        description: `Cargo por cancelación de viaje DogU #${clientRequest.id}`
+                    });
+                } catch (paymentErr) {
+                    console.error("⚠️ No se pudo cobró la tarifa de cancelación a la tarjeta:", paymentErr);
+                }
+            }
+        }
         const updatedClientRequest = await prisma.clientRequests.update({
             where: { id: data.id },
             data: {
