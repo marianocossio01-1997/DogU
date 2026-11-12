@@ -1,26 +1,29 @@
 import { MercadoPagoConfig, Payment } from 'mercadopago';
 
 const client = new MercadoPagoConfig({ 
-  accessToken: process.env.MP_ACCESS_TOKEN! 
+  accessToken: process.env.MP_ACCESS_TOKEN || ''
 });
 const payment = new Payment(client);
+interface CardPaymentInput {
+  token: string;
+  issuerId?: string;
+  paymentMethodId: string;
+  transactionAmount: number;
+  applicationFee?: number;
+  payerEmail: string;
+  description: string;
+}
 export const processCardPayment = async ({
   token,
   issuerId,
   paymentMethodId,
   transactionAmount,
+  applicationFee,
   payerEmail,
   description
-}: {
-  token: string;
-  issuerId?: string;
-  paymentMethodId: string;
-  transactionAmount: number;
-  payerEmail: string;
-  description: string;
-}) => {
+}: CardPaymentInput) => {
   try {
-    const bodyData: any = {
+    const bodyData: Record<string, any> = {
       token,
       payment_method_id: paymentMethodId,
       transaction_amount: transactionAmount,
@@ -31,6 +34,9 @@ export const processCardPayment = async ({
     };
     if (issuerId) {
       bodyData.issuer_id = issuerId;
+    }
+    if (applicationFee && applicationFee > 0) {
+      bodyData.application_fee = applicationFee;
     }
     const response = await payment.create({
       body: bodyData,
