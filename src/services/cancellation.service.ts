@@ -26,7 +26,6 @@ export const cancelTrip = async (data: CancelTripInput) => {
                 const userCard = await tx.userCard.findUnique({
                     where: { id: trip.id_card }
                 });
-
                 if (userCard) {
                     try {
                         await processCardPayment({

@@ -1,7 +1,8 @@
-import { PaymentMethod, TransactionType } from '@prisma/client';
+import { PaymentMethod, TransactionType, WithdrawalStatus } from '@prisma/client';
 import prisma from '../database/prismaClient.js';
 import { AppError } from '../utils/AppError.js';
 import { getIO } from '../sockets/socketHandler.js';
+import axios from 'axios';
 
 export const getOrCreateWallet = async (id_driver: number) => {
     try {
@@ -156,11 +157,50 @@ export const requestWithdrawal = async (data: {
     notes?: string;
 }) => {
     try {
-        const { id_driver, amount, id_card, notes } = data;
+        const { id_driver, amount, notes } = data;
         const wallet = await getOrCreateWallet(id_driver);
         const targetDriverId = wallet.id_driver;
+        if (amount < 2000) {
+            throw new AppError('El monto mínimo para retirar es de $2.000', 400);
+        }
         if (Number(wallet.balance) < amount) {
             throw new AppError('Saldo insuficiente para realizar el retiro', 400);
+        }
+        if (!wallet.cbu_cvu && !wallet.alias) {
+            throw new AppError('Debes registrar un CBU/CVU o Alias en tu perfil antes de solicitar un retiro', 400);
+        }
+        let mpTransferId = '';
+        try {
+            const mpAccessToken = process.env.MP_ACCESS_TOKEN;
+            if (!mpAccessToken) {
+                throw new AppError('Error de configuración del servidor (MP_ACCESS_TOKEN no definido)', 500);
+            }
+            const transferResponse = await axios.post(
+                'https://api.mercadopago.com/v1/transfers',
+                {
+                    amount: amount,
+                    description: `Retiro de ganancias DogU para conductor #${targetDriverId}`,
+                    receiver_allocation: {
+                        ...(wallet.cbu_cvu ? { cbu: wallet.cbu_cvu } : { alias: wallet.alias })
+                    }
+                },
+                {
+                    headers: {
+                        'Authorization': `Bearer ${mpAccessToken}`,
+                        'Content-Type': 'application/json',
+                        'X-Idempotency-Key': `withdrawal_${targetDriverId}_${Date.now()}` 
+                    }
+                }
+            );
+            if (transferResponse.data && transferResponse.data.id) {
+                mpTransferId = transferResponse.data.id.toString();
+            }
+        } catch (mpError: any) {
+            console.error("🚨 Error ejecutando la transferencia saliente en Mercado Pago:", mpError?.response?.data || mpError?.message);
+            throw new AppError(
+                `No se pudo procesar la transferencia bancaria: ${mpError?.response?.data?.message || 'Revisá tus datos bancarios de cobro.'}`,
+                400
+            );
         }
         const result = await prisma.$transaction(async (tx) => {
             const updatedWallet = await tx.driverWallet.update({
@@ -174,10 +214,10 @@ export const requestWithdrawal = async (data: {
             const withdrawal = await tx.withdrawalRequest.create({
                 data: {
                     id_driver_wallet: targetDriverId,
-                    id_card: id_card ?? null,
+                    id_card: data.id_card ?? null,
                     amount: amount,
-                    notes: notes ?? null,
-                    status: 'PENDING'
+                    notes: notes ? `${notes} (MP Transfer ID: ${mpTransferId})` : `MP Transfer ID: ${mpTransferId}`,
+                    status: WithdrawalStatus.APPROVED 
                 }
             });
             const transaction = await tx.walletTransaction.create({
@@ -185,7 +225,7 @@ export const requestWithdrawal = async (data: {
                     id_driver_wallet: targetDriverId,
                     amount: -amount,
                     type: TransactionType.WITHDRAWAL,
-                    description: `Solicitud de retiro de ganancias $${amount}`
+                    description: `Retiro automático a ${wallet.cbu_cvu || wallet.alias} ($${amount})`
                 }
             });
             return {
@@ -199,14 +239,14 @@ export const requestWithdrawal = async (data: {
                 id_driver: targetDriverId,
                 new_balance: Number(result.new_balance)
             });
-            console.log(`📡 [SOCKET] Retiro emitido a 'wallet_updated/${targetDriverId}': $${result.new_balance}`);
+            console.log(`📡 [SOCKET] Retiro automático acreditado e informado a 'wallet_updated/${targetDriverId}': $${result.new_balance}`);
         } catch (socketErr) {
             console.warn("⚠️ No se pudo emitir por socket:", socketErr);
         }
         return result;
     } catch (e: any) {
         if (e instanceof AppError) throw e;
-        throw new AppError(`Error al procesar la solicitud de retiro: ${e.message || e}`, 500);
+        throw new AppError(`Error al procesar el retiro automático: ${e.message || e}`, 500);
     }
 };
 export const getWithdrawalHistory = async (id_driver: number) => {
