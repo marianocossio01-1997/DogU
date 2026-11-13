@@ -2,21 +2,34 @@ declare const process: any;
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
+const DEFAULT_NIGHT_SURGE = 0.15; 
+const DEFAULT_RAIN_SURGE = 0.25; 
+const DEFAULT_TWO_PETS_SURGE = 0.20; 
 const countriesData = [
   // ─── AMÉRICA DEL SUR ────────────────────
-  { country_code: 'AR', country_name: 'Argentina', currency_code: 'ARS', currency_symbol: '$', exchange_rate: 1550.0, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },   { country_code: 'CL', country_name: 'Chile', currency_code: 'CLP', currency_symbol: '$', exchange_rate: 950.0, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },
-  { country_code: 'BR', country_name: 'Brasil', currency_code: 'BRL', currency_symbol: 'R$', exchange_rate: 5.6, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },   { country_code: 'CO', country_name: 'Colombia', currency_code: 'COP', currency_symbol: '$', exchange_rate: 4100.0, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },
+  { country_code: 'AR', country_name: 'Argentina', currency_code: 'ARS', currency_symbol: '$', exchange_rate: 1550.0, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },
+  { country_code: 'CL', country_name: 'Chile', currency_code: 'CLP', currency_symbol: '$', exchange_rate: 950.0, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },
+  { country_code: 'BR', country_name: 'Brasil', currency_code: 'BRL', currency_symbol: 'R$', exchange_rate: 5.6, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },
+  { country_code: 'CO', country_name: 'Colombia', currency_code: 'COP', currency_symbol: '$', exchange_rate: 4100.0, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },
   { country_code: 'PE', country_name: 'Perú', currency_code: 'PEN', currency_symbol: 'S/', exchange_rate: 3.75, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },
-  { country_code: 'UY', country_name: 'Uruguay', currency_code: 'UYU', currency_symbol: '$U', exchange_rate: 40.0, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },   { country_code: 'PY', country_name: 'Paraguay', currency_code: 'PYG', currency_symbol: '₲', exchange_rate: 7700.0, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },   { country_code: 'BO', country_name: 'Bolivia', currency_code: 'BOB', currency_symbol: 'Bs.', exchange_rate: 6.9, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },   { country_code: 'EC', country_name: 'Ecuador', currency_code: 'USD', currency_symbol: '$', exchange_rate: 1.0, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },
+  { country_code: 'UY', country_name: 'Uruguay', currency_code: 'UYU', currency_symbol: '$U', exchange_rate: 40.0, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },
+  { country_code: 'PY', country_name: 'Paraguay', currency_code: 'PYG', currency_symbol: '₲', exchange_rate: 7700.0, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },
+  { country_code: 'BO', country_name: 'Bolivia', currency_code: 'BOB', currency_symbol: 'Bs.', exchange_rate: 6.9, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },
+  { country_code: 'EC', country_name: 'Ecuador', currency_code: 'USD', currency_symbol: '$', exchange_rate: 1.0, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },
   { country_code: 'VE', country_name: 'Venezuela', currency_code: 'VES', currency_symbol: 'Bs.', exchange_rate: 36.5, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },
 
   // ─── AMÉRICA DEL NORTE, CENTRAL Y CARIBE ────────────────────
-  { country_code: 'MX', country_name: 'México', currency_code: 'MXN', currency_symbol: '$', exchange_rate: 19.5, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },   { country_code: 'US', country_name: 'Estados Unidos', currency_code: 'USD', currency_symbol: '$', exchange_rate: 1.0, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },
+  { country_code: 'MX', country_name: 'México', currency_code: 'MXN', currency_symbol: '$', exchange_rate: 19.5, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },
+  { country_code: 'US', country_name: 'Estados Unidos', currency_code: 'USD', currency_symbol: '$', exchange_rate: 1.0, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },
   { country_code: 'CA', country_name: 'Canadá', currency_code: 'CAD', currency_symbol: 'C$', exchange_rate: 1.36, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },
   { country_code: 'CR', country_name: 'Costa Rica', currency_code: 'CRC', currency_symbol: '₡', exchange_rate: 520.0, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },
   { country_code: 'PA', country_name: 'Panamá', currency_code: 'USD', currency_symbol: '$', exchange_rate: 1.0, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },
-  { country_code: 'DO', country_name: 'República Dominicana', currency_code: 'DOP', currency_symbol: 'RD$', exchange_rate: 59.0, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },   { country_code: 'GT', country_name: 'Guatemala', currency_code: 'GTQ', currency_symbol: 'Q', exchange_rate: 7.75, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },   { country_code: 'HN', country_name: 'Honduras', currency_code: 'HNL', currency_symbol: 'L', exchange_rate: 24.7, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },   { country_code: 'SV', country_name: 'El Salvador', currency_code: 'USD', currency_symbol: '$', exchange_rate: 1.0, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },
-  { country_code: 'NI', country_name: 'Nicaragua', currency_code: 'NIO', currency_symbol: 'C$', exchange_rate: 36.8, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },   { country_code: 'PR', country_name: 'Puerto Rico', currency_code: 'USD', currency_symbol: '$', exchange_rate: 1.0, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },
+  { country_code: 'DO', country_name: 'República Dominicana', currency_code: 'DOP', currency_symbol: 'RD$', exchange_rate: 59.0, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },
+  { country_code: 'GT', country_name: 'Guatemala', currency_code: 'GTQ', currency_symbol: 'Q', exchange_rate: 7.75, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },
+  { country_code: 'HN', country_name: 'Honduras', currency_code: 'HNL', currency_symbol: 'L', exchange_rate: 24.7, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },
+  { country_code: 'SV', country_name: 'El Salvador', currency_code: 'USD', currency_symbol: '$', exchange_rate: 1.0, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },
+  { country_code: 'NI', country_name: 'Nicaragua', currency_code: 'NIO', currency_symbol: 'C$', exchange_rate: 36.8, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },
+  { country_code: 'PR', country_name: 'Puerto Rico', currency_code: 'USD', currency_symbol: '$', exchange_rate: 1.0, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },
 
   // ─── EUROPA ─────────────────────
   { country_code: 'ES', country_name: 'España', currency_code: 'EUR', currency_symbol: '€', exchange_rate: 0.92, base_fare_usd: 1.5, km_value_usd: 0.5, min_value_usd: 0.1 },
@@ -92,6 +105,9 @@ async function main() {
           base_fare_usd: item.base_fare_usd,
           km_value_usd: item.km_value_usd,
           min_value_usd: item.min_value_usd,
+          night_surge_rate: DEFAULT_NIGHT_SURGE,
+          rain_surge_rate: DEFAULT_RAIN_SURGE,
+          two_pets_surge_rate: DEFAULT_TWO_PETS_SURGE,
         },
       });
     } else {
@@ -101,6 +117,9 @@ async function main() {
           base_fare_usd: item.base_fare_usd,
           km_value_usd: item.km_value_usd,
           min_value_usd: item.min_value_usd,
+          night_surge_rate: DEFAULT_NIGHT_SURGE,
+          rain_surge_rate: DEFAULT_RAIN_SURGE,
+          two_pets_surge_rate: DEFAULT_TWO_PETS_SURGE,
         },
       });
     }

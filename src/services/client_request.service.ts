@@ -62,13 +62,19 @@ const getCountryCodeFromCoordinates = async (lat: number, lng: number, apiKey: s
     }
     return null;
 };
-export const createClientRequest = async (data: CreateClientRequestInput) => {
+export const createClientRequest = async (data: CreateClientRequestInput & { pet_count?: number, is_night_fare?: boolean, is_rain_fare?: boolean }) => {
     try {
+        const petCount = data.pet_count ?? 1;
+        const isNight = data.is_night_fare ?? false;
+        const isRain = data.is_rain_fare ?? false;
         const requestId = await prisma.$transaction(async (tx: any) => {
             await tx.$executeRaw`
                 INSERT INTO client_requests(
                     id_client,
                     fare_offered,
+                    pet_count,
+                    is_night_fare,
+                    is_rain_fare,
                     pickup_position,
                     destination_position,
                     pickup_description,
@@ -80,6 +86,9 @@ export const createClientRequest = async (data: CreateClientRequestInput) => {
                 VALUES (
                     ${data.id_client},
                     ${data.fare_offered},
+                    ${petCount},
+                    ${isNight},
+                    ${isRain},
                     ST_GeomFromText(CONCAT('POINT(', ${data.pickup_lng}, ' ', ${data.pickup_lat}, ')'), 4326),
                     ST_GeomFromText(CONCAT('POINT(', ${data.destination_lng}, ' ', ${data.destination_lat}, ')'), 4326),
                     ${data.pickup_description},
@@ -94,6 +103,7 @@ export const createClientRequest = async (data: CreateClientRequestInput) => {
             `;
             return row?.id ? Number(row?.id) : null;
         });
+
         if (!requestId) {
             throw new AppError('No se pudo obtener el ID de la solicitud creada', 500);
         }
@@ -111,6 +121,9 @@ export const getByClientRequestCreated = async (id: number) => {
             CR.fare_assigned,
             CR.platform_fee,
             CR.driver_earnings,
+            CR.pet_count,
+            CR.is_night_fare,
+            CR.is_rain_fare,
             CR.payment_method,
             CR.payment_status,
             CR.pickup_description,
@@ -167,6 +180,9 @@ export const getByClientRequest = async (id: number) => {
             CR.fare_assigned,
             CR.platform_fee,
             CR.driver_earnings,
+            CR.pet_count,
+            CR.is_night_fare,
+            CR.is_rain_fare,
             CR.payment_method,
             CR.payment_status,
             CR.pickup_description,
@@ -338,7 +354,7 @@ export const updateStatus = async (data: UpdateClientRequestInput & { cancelled_
                         description: `Cargo por cancelación de viaje DogU #${clientRequest.id}`
                     });
                 } catch (paymentErr) {
-                    console.error("⚠️ No se pudo cobró la tarifa de cancelación a la tarjeta:", paymentErr);
+                    console.error("⚠️ No se pudo cobrar la tarifa de cancelación a la tarjeta:", paymentErr);
                 }
             }
         }
@@ -465,7 +481,9 @@ export const getTimeAndDistance = async (
     originLng: number,
     destinationLat: number,
     destinationLng: number,
-    countryCode?: string
+    countryCode?: string,
+    petCount: number = 1,
+    isRain: boolean = false
 ) => {
     const apikey = process.env.GOOGLE_MAPS_API_KEY;
     if (!apikey) {
@@ -518,15 +536,25 @@ export const getTimeAndDistance = async (
         });
     }
     const pricing = countryConfig?.pricing_configs?.[0] || {
-        base_fare_usd: 1,
-        km_value_usd: 1.1,
-        min_value_usd: 0.09
+        base_fare_usd: 1.5,
+        km_value_usd: 0.5,
+        min_value_usd: 0.1,
+        night_surge_rate: 0.15,
+        rain_surge_rate: 0.25,
+        two_pets_surge_rate: 0.20
     };
     const exchangeRate = countryConfig?.exchange_rate ?? 1.0;
     const currencyCode = countryConfig?.currency_code ?? 'USD';
     const currencySymbol = countryConfig?.currency_symbol ?? '$';
     const resolvedCountryCode = countryConfig?.country_code ?? 'US';
-    const totalUsd = pricing.base_fare_usd + (km * pricing.km_value_usd) + (minutes * pricing.min_value_usd);
+    const baseUsd = pricing.base_fare_usd + (km * pricing.km_value_usd) + (minutes * pricing.min_value_usd);
+    const currentHour = new Date().getHours();
+    const isNight = currentHour >= 22 || currentHour < 6;
+    let surgeMultiplier = 1.0;
+    if (isNight) surgeMultiplier += (pricing.night_surge_rate ?? 0.15);
+    if (isRain) surgeMultiplier += (pricing.rain_surge_rate ?? 0.25);
+    if (petCount >= 2) surgeMultiplier += (pricing.two_pets_surge_rate ?? 0.20); 
+    const totalUsd = baseUsd * surgeMultiplier;
     const recommendedValueLocal = Math.round(totalUsd * exchangeRate);
     return {
         distance: { text: element.distance.text, value: distanceValue },
@@ -536,6 +564,9 @@ export const getTimeAndDistance = async (
         currency_symbol: currencySymbol,
         exchange_rate: exchangeRate,
         recommended_value: recommendedValueLocal,
+        is_night_fare: isNight,
+        is_rain_fare: isRain,
+        pet_count: petCount,
         origin_addresses: body.origin_addresses?.[0] ?? 'Origen',
         destination_addresses: body.destination_addresses?.[0] ?? 'Destino',
     };
@@ -550,6 +581,9 @@ export const getNearbyClientRequests = async (driverLat: number, driverLng: numb
                 CR.fare_assigned,
                 CR.platform_fee,
                 CR.driver_earnings,
+                CR.pet_count,
+                CR.is_night_fare,
+                CR.is_rain_fare,
                 CR.payment_method,
                 CR.payment_status,
                 CR.pickup_description,
@@ -645,6 +679,9 @@ export const getByClientAssigned = async (id_client: number) => {
             CR.fare_assigned,
             CR.platform_fee,
             CR.driver_earnings,
+            CR.pet_count,
+            CR.is_night_fare,
+            CR.is_rain_fare,
             CR.payment_method,
             CR.payment_status,
             CR.pickup_description,
@@ -729,6 +766,9 @@ export const getByDriverAssigned = async (id_driver_assigned: number) => {
             CR.fare_assigned,
             CR.platform_fee,
             CR.driver_earnings,
+            CR.pet_count,
+            CR.is_night_fare,
+            CR.is_rain_fare,
             CR.payment_method,
             CR.payment_status,
             CR.pickup_description,

@@ -3,12 +3,15 @@ import { z } from "zod";
 export const createClientRequestSchema = z.object({
     id_client: z.coerce.number().refine((val) => val > 0, { message: "El id del cliente es obligatorio" }),
     fare_offered: z.coerce.number().refine((val) => val > 0, { message: "La oferta de tarifa es obligatorio" }),
-    pickup_lat: z.coerce.number().refine((val) => val > 0, { message: "La latitud de recogida es obligatorio" }),
-    pickup_lng: z.coerce.number().refine((val) => val > 0, { message: "La longitud de recogida es obligatorio" }),
-    destination_lat: z.coerce.number().refine((val) => val > 0, { message: "La latitud de destino es obligatorio" }),
-    destination_lng: z.coerce.number().refine((val) => val > 0, { message: "La longitud de destino es obligatorio" }),
+    pickup_lat: z.coerce.number().refine((val) => val !== 0, { message: "La latitud de recogida es obligatorio" }),
+    pickup_lng: z.coerce.number().refine((val) => val !== 0, { message: "La longitud de recogida es obligatorio" }),
+    destination_lat: z.coerce.number().refine((val) => val !== 0, { message: "La latitud de destino es obligatorio" }),
+    destination_lng: z.coerce.number().refine((val) => val !== 0, { message: "La longitud de destino es obligatorio" }),
     pickup_description: z.string().min(2, { message: "La descripcion de recogida es obligatorio" }),
     destination_description: z.string().min(2, { message: "La descripcion de destino es obligatorio" }),
+    pet_count: z.coerce.number().int().min(1).max(2).optional().default(1),
+    is_night_fare: z.boolean().optional().default(false),
+    is_rain_fare: z.boolean().optional().default(false),
 });
 export const assingDriverSchema = z.object({
     id: z.coerce.number().refine((val) => val > 0, { message: "El id de la solicitud es obligatorio" }),

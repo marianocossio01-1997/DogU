@@ -78,7 +78,8 @@ export const getNearbyClientRequests = async (req: Request, res: Response, next:
         console.error("💥 Error en getNearbyClientRequests Controller:", error);
         next(error);
     }           
-};export const getByClientRequest = async (req: Request, res: Response, next: NextFunction) => {
+};
+export const getByClientRequest = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const id = Number(req.params.id);
         if (isNaN(id)) {
@@ -95,11 +96,15 @@ export const getNearbyClientRequests = async (req: Request, res: Response, next:
 };
 export const getTimeAndDistance = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const originLat = Number(req.params.origin_lat ?? req.query.originLat);
-        const originLng = Number(req.params.origin_lng ?? req.query.originLng);
-        const destinationLat = Number(req.params.destination_lat ?? req.query.destinationLat);
-        const destinationLng = Number(req.params.destination_lng ?? req.query.destinationLng);
+        const originLat = Number(req.params.origin_lat ?? req.query.originLat ?? req.query.origin_lat);
+        const originLng = Number(req.params.origin_lng ?? req.query.originLng ?? req.query.origin_lng);
+        const destinationLat = Number(req.params.destination_lat ?? req.query.destinationLat ?? req.query.destination_lat);
+        const destinationLng = Number(req.params.destination_lng ?? req.query.destinationLng ?? req.query.destination_lng);
         const countryCode = (req.params.country_code ?? req.query.countryCode ?? req.query.country_code) as string | undefined;
+        const rawPetCount = req.query.petCount ?? req.query.pet_count ?? req.params.pet_count;
+        const petCount = rawPetCount ? Number(rawPetCount) : 1;
+        const rawIsRain = String(req.query.isRain ?? req.query.is_rain ?? req.params.is_rain ?? 'false').toLowerCase();
+        const isRain = rawIsRain === 'true' || rawIsRain === '1';
         if (isNaN(originLat) || isNaN(originLng) || isNaN(destinationLat) || isNaN(destinationLng)) {
             return res.status(400).json({ message: "Las coordenadas de origen y destino son requeridas y deben ser números válidos" });
         }
@@ -108,10 +113,12 @@ export const getTimeAndDistance = async (req: Request, res: Response, next: Next
             originLng,
             destinationLat,
             destinationLng,
-            countryCode
+            countryCode,
+            petCount,
+            isRain
         );
         return res.status(200).json(data);
     } catch (error) {
         next(error);
     }           
-}
+};

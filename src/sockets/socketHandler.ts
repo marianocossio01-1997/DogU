@@ -154,7 +154,6 @@ export const initializaSocket = (server: Httpserver) => {
                 ? incomingImage 
                 : (clientObj?.image || incomingImage || "");
                 const finalImageUrl = formatImageUrl(rawImage) || rawImage || "";
-            
                 const updatedClient = {
                     id: Number(idClient),
                     fullname: clientObj?.fullname || clientObj?.name || data?.fullname || 'Cliente',
@@ -198,6 +197,9 @@ export const initializaSocket = (server: Httpserver) => {
                     "id_socket": socket.id,
                     "id_client_request": Number(idRequest),
                     "id_client": Number(idClient),
+                    "pet_count": Number(data?.pet_count ?? data?.petCount ?? 1),
+                    "is_night_fare": Boolean(data?.is_night_fare ?? data?.isNightFare ?? false),
+                    "is_rain_fare": Boolean(data?.is_rain_fare ?? data?.isRainFare ?? false),
                     "client": updatedClient,
                     "client_image": finalImageUrl,
                     "clientImage": finalImageUrl,
@@ -216,7 +218,7 @@ export const initializaSocket = (server: Httpserver) => {
                     "pickup_position": { x: pickupLat, y: pickupLng, lat: pickupLat, lng: pickupLng },
                     "destination_position": { x: destLat, y: destLng, lat: destLat, lng: destLng }
                 };
-                console.log(`📍 Solicitud viaje #${idRequest} emitida por cliente #${idClient} (Imagen: ${finalImageUrl})`);
+                console.log(`📍 Solicitud viaje #${idRequest} emitida por cliente #${idClient} (Mascotas: ${clientRequest.pet_count}, Noche: ${clientRequest.is_night_fare}, Lluvia: ${clientRequest.is_rain_fare})`);
                 if (!isNaN(pickupLat) && !isNaN(pickupLng) && pickupLat !== 0.0 && pickupLng !== 0.0) {
                     let notifiedCount = 0;
                     for (const [socketId, driverId] of socketToDriverMap.entries()) {
@@ -230,7 +232,7 @@ export const initializaSocket = (server: Httpserver) => {
                             }
                         }
                     }
-                    console.log(`📡 'created_client_request' emitida a ${notifiedCount} conductores dentro del rango de 5 KM.`);
+                    console.log(`📡 'created_client_request' emitida a ${notifiedCount} conductores dentro del rango.`);
                 } else {
                     console.warn("⚠️ Coordenadas no válidas (0.0). Realizando emisión global.");
                     io.emit("created_client_request", clientRequest);
@@ -297,6 +299,9 @@ export const initializaSocket = (server: Httpserver) => {
                         id: requestDb.id,
                         id_client_request: requestDb.id,
                         id_socket: socket.id,
+                        pet_count: Number(reqAny?.pet_count ?? 1),
+                        is_night_fare: Boolean(reqAny?.is_night_fare ?? false),
+                        is_rain_fare: Boolean(reqAny?.is_rain_fare ?? false),
                         client: clientData ? {
                             ...clientData,
                             image: finalImageUrl
@@ -323,7 +328,7 @@ export const initializaSocket = (server: Httpserver) => {
                                 }
                             }
                         }
-                        console.log(`📡 'resend_client_request' emitida a ${notifiedCount} conductores dentro de los 5 KM.`);
+                        console.log(`📡 'resend_client_request' emitida a ${notifiedCount} conductores.`);
                     } else {
                         io.emit("created_client_request", payload);
                     }
@@ -355,7 +360,7 @@ export const initializaSocket = (server: Httpserver) => {
                     });
                     if (!trip) throw new Error("El viaje no existe");
                     const fareToCalculate = trip.fare_assigned ?? trip.fare_offered ?? 0;
-                    const CANCELLATION_RATE = 0.15; // 15%
+                    const CANCELLATION_RATE = 0.15;
                     const cancellationFee = Number((fareToCalculate * CANCELLATION_RATE).toFixed(2));
                     const updatedTrip = await tx.clientRequests.update({
                         where: { id: idClientRequest },
@@ -504,7 +509,6 @@ export const initializaSocket = (server: Httpserver) => {
             };
             console.log(`🚕 Nuevo conductor asignado (${idDriver}) para viaje:`, clientRequest);
             io.emit(`driver_assigned/${idDriver}`, clientRequest);
-
             if (idClientRequest) {
                 io.emit('trip_assigned_to_other', {
                     id_client_request: Number(idClientRequest),
@@ -526,9 +530,7 @@ export const initializaSocket = (server: Httpserver) => {
                 const idClientRequest = Number(data?.id_client_request || data?.idClientRequest);
                 const status = data?.status;
                 const idDriver = Number(data?.id_driver || data?.idDriver);
-
                 console.log(`📌 Cambiando estado de viaje #${idClientRequest} a '${status}' para conductor #${idDriver}`);
-
                 if (idClientRequest && status) {
                     await prisma.clientRequests.update({
                         where: { id: idClientRequest },
@@ -544,7 +546,6 @@ export const initializaSocket = (server: Httpserver) => {
                     });
                     if (trip) {
                         const totalFare = Number(trip.fare_assigned ?? trip.fare_offered);
-                        
                         const paymentResult = await DriverWalletService.processTripPayment({
                             id_client_request: trip.id,
                             id_driver: idDriver,

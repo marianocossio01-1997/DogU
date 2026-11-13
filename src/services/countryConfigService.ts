@@ -19,14 +19,20 @@ export class CountryConfigService {
       currency_symbol: country.currency_symbol,
       exchange_rate: rate,
       pricing_usd: {
-        base_fare: pricing?.base_fare_usd ?? 1,
-        km_value: pricing?.km_value_usd ?? 1,
-        min_value: pricing?.min_value_usd ?? 0.09,
+        base_fare: pricing?.base_fare_usd ?? 1.5,
+        km_value: pricing?.km_value_usd ?? 0.5,
+        min_value: pricing?.min_value_usd ?? 0.1,
+        night_surge_rate: pricing?.night_surge_rate ?? 0.15,
+        rain_surge_rate: pricing?.rain_surge_rate ?? 0.25,
+        two_pets_surge_rate: pricing?.two_pets_surge_rate ?? 0.20,
       },
       pricing_local: {
-        base_fare: (pricing?.base_fare_usd ?? 1) * rate,
-        km_value: (pricing?.km_value_usd ?? 1) * rate,
-        min_value: (pricing?.min_value_usd ?? 0.09) * rate,
+        base_fare: (pricing?.base_fare_usd ?? 1.5) * rate,
+        km_value: (pricing?.km_value_usd ?? 0.5) * rate,
+        min_value: (pricing?.min_value_usd ?? 0.1) * rate,
+        night_surge_rate: pricing?.night_surge_rate ?? 0.15,
+        rain_surge_rate: pricing?.rain_surge_rate ?? 0.25,
+        two_pets_surge_rate: pricing?.two_pets_surge_rate ?? 0.20,
       },
     };
   }

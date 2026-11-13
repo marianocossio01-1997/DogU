@@ -82,7 +82,10 @@ model PricingConfig {
   min_value_usd         Float         @default(0.1)
   commission_rate       Float         @default(0.20)
   cancellation_fee_usd  Float         @default(0.5)
-  cancellation_fee_rate Float         @default(0.15) 
+  cancellation_fee_rate Float         @default(0.15)
+  night_surge_rate      Float         @default(0.15) 
+  rain_surge_rate       Float         @default(0.25) 
+  two_pets_surge_rate   Float         @default(0.20) 
   country               CountryConfig @relation(fields: [id_country], references: [id], onDelete: Cascade, onUpdate: Cascade)
   created_at            DateTime      @default(now())
   updated_at            DateTime      @updatedAt
@@ -123,6 +126,9 @@ model ClientRequests {
   fare_assigned           Float?
   platform_fee            Float?
   driver_earnings         Float?
+  pet_count               Int                 @default(1) 
+  is_night_fare           Boolean             @default(false) 
+  is_rain_fare            Boolean             @default(false) 
   payment_method          PaymentMethod       @default(CASH)
   payment_status          PaymentStatus       @default(PENDING)
   payment_id              String?             @db.VarChar(255)
@@ -135,7 +141,7 @@ model ClientRequests {
   status                  ClientRequestStatus @default(CREATED)
   cancelled_by            CancelledBy?
   cancellation_reason     String?             @db.VarChar(255)
-  cancellation_fee        Float?             
+  cancellation_fee        Float?              
   created_at              DateTime            @default(now())
   updated_at              DateTime            @updatedAt
   driverTripOffers        DriverTripOffer[]
