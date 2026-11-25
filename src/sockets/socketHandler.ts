@@ -9,7 +9,7 @@ let io: Server;
 const activeDriversMap = new Map<number, { id: number; lat: number; lng: number; updatedAt: number }>();
 const socketToDriverMap = new Map<string, number>();
 const getDistanceInKm = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-    const R = 6371; 
+    const R = 6371;
     const dLat = (lat2 - lat1) * (Math.PI / 180);
     const dLon = (lon2 - lon1) * (Math.PI / 180);
     const a =
@@ -150,8 +150,8 @@ export const initializaSocket = (server: Httpserver) => {
                     }
                 }
                 const incomingImage = data?.client?.image || data?.client_image || data?.image || "";
-                const rawImage = (incomingImage && incomingImage.startsWith('http')) 
-                ? incomingImage 
+                const rawImage = (incomingImage && incomingImage.startsWith('http'))
+                ? incomingImage
                 : (clientObj?.image || incomingImage || "");
                 const finalImageUrl = formatImageUrl(rawImage) || rawImage || "";
                 const updatedClient = {
@@ -218,23 +218,21 @@ export const initializaSocket = (server: Httpserver) => {
                     "pickup_position": { x: pickupLat, y: pickupLng, lat: pickupLat, lng: pickupLng },
                     "destination_position": { x: destLat, y: destLng, lat: destLat, lng: destLng }
                 };
-                console.log(`📍 Solicitud viaje #${idRequest} emitida por cliente #${idClient} (Mascotas: ${clientRequest.pet_count}, Noche: ${clientRequest.is_night_fare}, Lluvia: ${clientRequest.is_rain_fare})`);
+                console.log(`📍 Solicitud viaje #${idRequest} emitida por cliente #${idClient}`);
                 if (!isNaN(pickupLat) && !isNaN(pickupLng) && pickupLat !== 0.0 && pickupLng !== 0.0) {
                     let notifiedCount = 0;
                     for (const [socketId, driverId] of socketToDriverMap.entries()) {
                         const driverPos = activeDriversMap.get(driverId);
                         if (driverPos && (Date.now() - driverPos.updatedAt < 15 * 60 * 1000)) {
                             const distanceKm = getDistanceInKm(pickupLat, pickupLng, driverPos.lat, driverPos.lng);
-                            console.log(`📏 Distancia al conductor #${driverId}: ${distanceKm.toFixed(2)} km`);
                             if (distanceKm <= 7.0) {
                                 io.to(socketId).emit("created_client_request", clientRequest);
                                 notifiedCount++;
                             }
                         }
                     }
-                    console.log(`📡 'created_client_request' emitida a ${notifiedCount} conductores dentro del rango.`);
+                    console.log(`📡 'created_client_request' emitida a ${notifiedCount} conductores.`);
                 } else {
-                    console.warn("⚠️ Coordenadas no válidas (0.0). Realizando emisión global.");
                     io.emit("created_client_request", clientRequest);
                 }
             } catch (error) {
@@ -249,14 +247,12 @@ export const initializaSocket = (server: Httpserver) => {
         socket.on("resend_client_request", async (data: any) => {
             try {
                 const idClientRequest = Number(data?.id_client_request || data?.idClientRequest || data?.id);
-                if (!idClientRequest) {
-                    console.warn("⚠️ 'resend_client_request' recibido sin id_client_request válido:", data);
-                    return;
-                }
-                console.log(`🔄 Reenviando solicitud de viaje #${idClientRequest} a los conductores...`);
+                if (!idClientRequest) return;
+            
                 const requestDb = await prisma.clientRequests.findUnique({
                     where: { id: idClientRequest }
                 });
+
                 if (requestDb) {
                     const reqAny = requestDb as any;
                     const idClient = reqAny?.id_client || reqAny?.idClient;
@@ -265,80 +261,28 @@ export const initializaSocket = (server: Httpserver) => {
                         try {
                             clientData = await prisma.user.findUnique({
                                 where: { id: Number(idClient) },
-                                select: {
-                                    id: true,
-                                    fullname: true,
-                                    email: true,
-                                    phone: true,
-                                    image: true
-                                }
+                                select: { id: true, fullname: true, email: true, phone: true, image: true }
                             });
                         } catch (uErr) {
-                            console.warn("⚠️ Error al buscar usuario del viaje:", uErr);
+                            console.warn("⚠️ Error al buscar usuario:", uErr);
                         }
                     }
                     const finalImageUrl = formatImageUrl(clientData?.image);
-                    const pickupLat = Number(
-                        reqAny?.pickup_lat ??
-                        reqAny?.pickupLat ??
-                        reqAny?.pickup_position?.x ??
-                        reqAny?.pickup_position?.lat ??
-                        data?.pickup_lat ??
-                        data?.pickupLat ?? 0.0
-                    );
-                    const pickupLng = Number(
-                        reqAny?.pickup_lng ??
-                        reqAny?.pickupLng ??
-                        reqAny?.pickup_position?.y ??
-                        reqAny?.pickup_position?.lng ??
-                        data?.pickup_lng ??
-                        data?.pickupLng ?? 0.0
-                    );
+                    const pickupLat = Number(reqAny?.pickup_lat ?? reqAny?.pickupLat ?? 0.0);
+                    const pickupLng = Number(reqAny?.pickup_lng ?? reqAny?.pickupLng ?? 0.0);
                     const payload = {
                         ...requestDb,
                         id: requestDb.id,
                         id_client_request: requestDb.id,
                         id_socket: socket.id,
-                        pet_count: Number(reqAny?.pet_count ?? 1),
-                        is_night_fare: Boolean(reqAny?.is_night_fare ?? false),
-                        is_rain_fare: Boolean(reqAny?.is_rain_fare ?? false),
-                        client: clientData ? {
-                            ...clientData,
-                            image: finalImageUrl
-                        } : {},
+                        client: clientData ? { ...clientData, image: finalImageUrl } : {},
                         client_image: finalImageUrl || "",
-                        payment_method: reqAny?.payment_method || "CASH",
-                        payment_status: reqAny?.payment_status || "PENDING",
-                        payment_id: reqAny?.payment_id || null,
                         pickupLat: pickupLat,
                         pickupLng: pickupLng,
                         pickup_lat: pickupLat,
                         pickup_lng: pickupLng,
-                        pickup_position: reqAny?.pickup_position || { x: pickupLat, y: pickupLng, lat: pickupLat, lng: pickupLng }
                     };
-                    if (!isNaN(pickupLat) && !isNaN(pickupLng) && pickupLat !== 0.0 && pickupLng !== 0.0) {
-                        let notifiedCount = 0;
-                        for (const [socketId, driverId] of socketToDriverMap.entries()) {
-                            const driverPos = activeDriversMap.get(driverId);
-                            if (driverPos && (Date.now() - driverPos.updatedAt < 15 * 60 * 1000)) {
-                                const distanceKm = getDistanceInKm(pickupLat, pickupLng, driverPos.lat, driverPos.lng);
-                                if (distanceKm <= 7.0) {
-                                    io.to(socketId).emit("created_client_request", payload);
-                                    notifiedCount++;
-                                }
-                            }
-                        }
-                        console.log(`📡 'resend_client_request' emitida a ${notifiedCount} conductores.`);
-                    } else {
-                        io.emit("created_client_request", payload);
-                    }
-                } else {
-                    io.emit("created_client_request", {
-                        id_socket: socket.id,
-                        id_client_request: idClientRequest,
-                        id: idClientRequest,
-                        ...data
-                    });
+                    io.emit("created_client_request", payload);
                 }
             } catch (error) {
                 console.error("🚨 Error al procesar 'resend_client_request':", error);
@@ -348,104 +292,30 @@ export const initializaSocket = (server: Httpserver) => {
             try {
                 const idClientRequest = Number(data?.id_client_request || data?.idClientRequest || data?.id);
                 const cancelledBy: "CLIENT" | "DRIVER" = data?.cancelled_by || data?.cancelledBy || "CLIENT";
-                const cancellationReason = data?.cancellation_reason || data?.cancellationReason || "Cancelado desde la aplicación";
-                if (!idClientRequest) {
-                    console.warn("⚠️ Evento 'cancel_client_request' recibido sin id_client_request válido");
-                    return;
-                }
-                console.log(`❌ Cancelando viaje #${idClientRequest} por ${cancelledBy}...`);
-                const result = await prisma.$transaction(async (tx) => {
-                    const trip = await tx.clientRequests.findUnique({
-                        where: { id: idClientRequest }
-                    });
-                    if (!trip) throw new Error("El viaje no existe");
-                    const fareToCalculate = trip.fare_assigned ?? trip.fare_offered ?? 0;
-                    const CANCELLATION_RATE = 0.15;
-                    const cancellationFee = Number((fareToCalculate * CANCELLATION_RATE).toFixed(2));
-                    const updatedTrip = await tx.clientRequests.update({
-                        where: { id: idClientRequest },
-                        data: {
-                            status: "CANCELLED",
-                            cancelled_by: cancelledBy,
-                            cancellation_reason: cancellationReason,
-                            cancellation_fee: cancellationFee
-                        }
-                    });
-                    let newDriverWalletBalance: number | null = null;
-                    if (trip.id_driver_assigned) {
-                        const driverWallet = await tx.driverWallet.findUnique({
-                            where: { id_driver: trip.id_driver_assigned }
-                        });
-                        if (driverWallet) {
-                            if (cancelledBy === "CLIENT") {
-                                const updatedWallet = await tx.driverWallet.update({
-                                    where: { id_driver: trip.id_driver_assigned },
-                                    data: { balance: { increment: cancellationFee } }
-                                });
-                                newDriverWalletBalance = updatedWallet.balance;
-                                await tx.walletTransaction.create({
-                                    data: {
-                                        id_driver_wallet: trip.id_driver_assigned,
-                                        id_client_request: trip.id,
-                                        amount: cancellationFee,
-                                        type: TransactionType.CANCELLATION_FEE,
-                                        description: `Compensación por cancelación del cliente (15% del viaje #${trip.id})`
-                                    }
-                                });
-                            } else if (cancelledBy === "DRIVER") {
-                                const updatedWallet = await tx.driverWallet.update({
-                                    where: { id_driver: trip.id_driver_assigned },
-                                    data: { balance: { decrement: cancellationFee } }
-                                });
-                                newDriverWalletBalance = updatedWallet.balance;
-                                await tx.walletTransaction.create({
-                                    data: {
-                                        id_driver_wallet: trip.id_driver_assigned,
-                                        id_client_request: trip.id,
-                                        amount: -cancellationFee,
-                                        type: TransactionType.CANCELLATION_FEE,
-                                        description: `Penalización por cancelación de viaje #${trip.id} (15%)`
-                                    }
-                                });
-                            }
-                        }
-                    }
-                    return { updatedTrip, cancellationFee, newDriverWalletBalance, idDriverAssigned: trip.id_driver_assigned };
-                });
+                const cancellationReason = data?.cancellation_reason || data?.cancellationReason || "Cancelado desde la app";
+                if (!idClientRequest) return;
+
                 const cancelPayload = {
                     id_client_request: idClientRequest,
                     id: idClientRequest,
                     status: "CANCELLED",
                     cancelled_by: cancelledBy,
-                    cancellation_reason: cancellationReason,
-                    cancellation_fee: result.cancellationFee
+                    cancellation_reason: cancellationReason
                 };
                 io.emit("client_request_cancelled", cancelPayload);
                 io.emit(`new_status_trip/${idClientRequest}`, cancelPayload);
-                if (result.idDriverAssigned && result.newDriverWalletBalance !== null) {
-                    io.emit(`wallet_updated/${result.idDriverAssigned}`, {
-                        id_driver: result.idDriverAssigned,
-                        new_balance: result.newDriverWalletBalance
-                    });
-                }
             } catch (error) {
-                console.error("🚨 Error al procesar 'cancel_client_request' en Socket:", error);
-                const idClientRequest = Number(data?.id_client_request || data?.id);
-                io.emit("client_request_cancelled", {
-                    id_client_request: idClientRequest,
-                    id: idClientRequest,
-                    status: "CANCELLED",
-                    cancelled_by: data?.cancelled_by || "CLIENT"
-                });
+                console.error("🚨 Error al procesar 'cancel_client_request':", error);
             }
         });
         socket.on("new_driver_offer", async (data: any) => {
             try {
-                if (!data?.id_client_request) {
+                const rawIdReq = data?.id_client_request ?? data?.idClientRequest;
+                if (!rawIdReq) {
                     console.log("⚠️ Evento 'new_driver_offer' recibido sin 'id_client_request'");
                     return;
                 }
-                const idClientRequest = String(data.id_client_request).trim();
+                const idClientRequest = Number(rawIdReq);
                 const idDriver = data?.id_driver || data?.idDriver || data?.driver?.id;
                 let driverObj = data?.driver || {};
                 if (idDriver) {
@@ -461,10 +331,7 @@ export const initializaSocket = (server: Httpserver) => {
                             }
                         });
                         if (driverDb) {
-                            driverObj = {
-                                ...driverObj,
-                                ...driverDb
-                            };
+                            driverObj = { ...driverObj, ...driverDb };
                         }
                     } catch (dbError) {
                         console.warn("⚠️ No se pudo consultar prisma.user para el conductor:", dbError);
@@ -479,21 +346,25 @@ export const initializaSocket = (server: Httpserver) => {
                 const offerPayload = {
                     ...data,
                     "id_socket": socket.id,
-                    "id_client_request": Number(idClientRequest),
+                    "id_client_request": idClientRequest,
+                    "idClientRequest": idClientRequest,
                     "driver": updatedDriver,
                     "driver_image": finalDriverImageUrl || ""
                 };
                 const targetChannel = `created_driver_offer/${idClientRequest}`;
-                console.log(`📡 [SOCKET] Retransmitiendo oferta a '${targetChannel}'`);
+                console.log(`📡 [SOCKET] Retransmitiendo oferta limpia a '${targetChannel}'`);
                 io.emit(targetChannel, offerPayload);
+                io.emit("created_driver_offer", offerPayload);
             } catch (error) {
                 console.error("🚨 Error grave al procesar 'new_driver_offer':", error);
-                const idClientRequest = String(data?.id_client_request).trim();
-                io.emit(`created_driver_offer/${idClientRequest}`, {
-                    "id_socket": socket.id,
-                    "id_client_request": Number(idClientRequest),
-                    ...data
-                });
+                const idClientRequest = Number(data?.id_client_request || data?.idClientRequest);
+                if (idClientRequest) {
+                    io.emit(`created_driver_offer/${idClientRequest}`, {
+                        "id_socket": socket.id,
+                        "id_client_request": idClientRequest,
+                        ...data
+                    });
+                }
             }
         });
         socket.on("new_driver_assigned", (data: any) => {
@@ -507,7 +378,6 @@ export const initializaSocket = (server: Httpserver) => {
                 "payment_status": data?.payment_status || "PENDING",
                 "payment_id": data?.payment_id || null
             };
-            console.log(`🚕 Nuevo conductor asignado (${idDriver}) para viaje:`, clientRequest);
             io.emit(`driver_assigned/${idDriver}`, clientRequest);
             if (idClientRequest) {
                 io.emit('trip_assigned_to_other', {
@@ -530,7 +400,7 @@ export const initializaSocket = (server: Httpserver) => {
                 const idClientRequest = Number(data?.id_client_request || data?.idClientRequest);
                 const status = data?.status;
                 const idDriver = Number(data?.id_driver || data?.idDriver);
-                console.log(`📌 Cambiando estado de viaje #${idClientRequest} a '${status}' para conductor #${idDriver}`);
+
                 if (idClientRequest && status) {
                     await prisma.clientRequests.update({
                         where: { id: idClientRequest },
@@ -541,9 +411,7 @@ export const initializaSocket = (server: Httpserver) => {
                     });
                 }
                 if ((status === "FINISHED" || status === "COMPLETED") && idDriver) {
-                    const trip = await prisma.clientRequests.findUnique({
-                        where: { id: idClientRequest }
-                    });
+                    const trip = await prisma.clientRequests.findUnique({ where: { id: idClientRequest } });
                     if (trip) {
                         const totalFare = Number(trip.fare_assigned ?? trip.fare_offered);
                         const paymentResult = await DriverWalletService.processTripPayment({
@@ -559,6 +427,7 @@ export const initializaSocket = (server: Httpserver) => {
                         });
                     }
                 }
+
                 const clientRequest = {
                     "id_socket": socket.id,
                     "id_client_request": idClientRequest,
@@ -568,9 +437,8 @@ export const initializaSocket = (server: Httpserver) => {
                     "payment_id": data?.payment_id || null
                 };
                 io.emit(`new_status_trip/${idClientRequest}`, clientRequest);
-
             } catch (error) {
-                console.error("🚨 Error grave al actualizar status de viaje o comisión en BD:", error);
+                console.error("🚨 Error grave al actualizar status de viaje:", error);
             }
         });
         socket.on("disconnect_driver", (data: any) => {
