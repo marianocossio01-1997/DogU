@@ -1,5 +1,4 @@
-import { type } from "os";
-import {z} from "zod";
+import { z } from "zod";
 
 export const createUserSchema = z.object({
     fullname: z.string().min(3, { message: "El nombre es obligatorio"}),
@@ -14,7 +13,9 @@ export const createUserSchema = z.object({
 export const updateUserSchema = z.object({
     fullname: z.string().min(3, { message: "El nombre debe tener al menos 3 caracteres"}).optional(),
     phone: z.string().min(5, { message: "Minimo 5 caracteres para el teléfono"}).optional(),
-
+    brand: z.string().optional(),
+    plate: z.string().optional(),
+    color: z.string().optional(),
 });
 export type CreateUserInput = z.infer<typeof createUserSchema>;
 export type UpdateUserInput = z.infer<typeof updateUserSchema>;
